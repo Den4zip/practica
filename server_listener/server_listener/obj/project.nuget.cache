@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "c4mqx6KtsEY=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\untit\\Desktop\\server_listener\\server_listener\\server_listener\\server_listener.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\untit\\.nuget\\packages\\mysqlconnector\\2.3.7\\mysqlconnector.2.3.7.nupkg.sha512"
+  ],
+  "logs": []
+}

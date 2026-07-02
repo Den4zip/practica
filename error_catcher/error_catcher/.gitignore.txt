@@ -1,0 +1,86 @@
+## Очередь сборки и временные файлы .NET
+[Bb]in/
+[Oo]bj/
+[Log]/
+
+## Результаты публикации (Publish)
+publish/
+store/
+
+## Файлы конфигурации пользователя и локальные настройки
+*.user
+*.userosscache
+*.sln.docstates
+
+## Настройки Visual Studio
+.vs/
+MemoryDumps/
+*_i.c
+*_p.c
+*.ilk
+*.meta
+*.obj
+*.pch
+*.pdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*.log
+*.vspscc
+*.vsscc
+*.opensdf
+*.sdf
+*.pidb
+*.glo
+*.rsp
+*.x86
+*.x64
+*.vsix
+*.vsixmanifest
+*.vsixprofiles
+
+## Настройки JetBrains (Rider, Resharper)
+.idea/
+*.sln.iml
+
+## Настройки VS Code
+.vscode/
+# Если вам нужны общие настройки запуска для команды, раскомментируйте следующую строку:
+# !.vscode/launch.json
+
+## Локальные конфигурационные файлы среды (содержащие пароли и строки подключения)
+appsettings.Development.json
+# Рекомендуется хранить секреты вне репозитория, поэтому игнорируем файлы с секретами:
+secrets.json
+*.secrets
+
+## Файлы пакетов NuGet
+*.nupkg
+# Папка глобальных пакетов (если настроена локально)
+packages/
+# Файлы восстановления NuGet
+project.lock.json
+project.assets.json
+
+## Временные файлы операционных систем
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+## Логи и отчеты о покрытии кода
+*.log
+*.crash
+*.coverage
+*.clover
+htmlcov/
