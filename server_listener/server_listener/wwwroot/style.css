@@ -2,4 +2,26 @@
     max-width: 500px;
     word-wrap: break-word;
     white-space: pre-wrap;
+    font-size: 0.9rem;
+}
+
+/* Цветовая индикация строк */
+.table-row-error {
+    background-color: #f8d7da !important; /* Розовый */
+}
+
+.table-row-warning {
+    background-color: #fff3cd !important; /* Желтый */
+}
+
+.table-row-security {
+    background-color: #d1ecf1 !important; /* Синий */
+}
+
+.table-row-metric {
+    background-color: #e2e3e5 !important; /* Серый */
+}
+
+.table-row-info {
+    /* Стандартный фон или можно задать свой */
 }
