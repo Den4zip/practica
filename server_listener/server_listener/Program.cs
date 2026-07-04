@@ -79,6 +79,10 @@ app.MapPost("/query", async (HttpContext context, MySqlConnection dbConnection) 
     catch (Exception ex)
     {
         app.Logger.LogError(ex, "Error executing insert query.");
+        if (app.Environment.IsDevelopment())
+        {
+            return Results.Problem(ex.ToString());
+        }
         return Results.Problem("An error occurred while processing your request.");
     }
 })
