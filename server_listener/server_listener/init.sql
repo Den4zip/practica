@@ -2,13 +2,19 @@ CREATE DATABASE IF NOT EXISTS `ErrorLogsDB`;
 
 USE `ErrorLogsDB`;
 
-CREATE TABLE IF NOT EXISTS `WindowsErrors` (
+-- Удаляем старую таблицу, если она существует, для чистого создания новой
+DROP TABLE IF EXISTS `WindowsErrors`;
+DROP TABLE IF EXISTS `SystemLogs`;
+
+-- Новая, более универсальная таблица для всех типов системных логов
+CREATE TABLE IF NOT EXISTS `SystemLogs` (
   `Id` INT AUTO_INCREMENT PRIMARY KEY,
-  `EventID` INT,
-  `MachineName` VARCHAR(255),
+  `MachineName` VARCHAR(255) NOT NULL,
+  `EventType` VARCHAR(50) NOT NULL, -- 'WindowsError', 'Metric', 'Security', 'Service'
   `Source` VARCHAR(255),
   `LevelDisplayName` VARCHAR(100),
   `LogName` VARCHAR(100),
-  `TimeCreated` DATETIME,
-  `Message` TEXT
+  `EventID` INT,
+  `TimeCreated` DATETIME NOT NULL,
+  `Message` TEXT NOT NULL
 );

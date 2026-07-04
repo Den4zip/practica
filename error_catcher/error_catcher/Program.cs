@@ -13,8 +13,14 @@ public static class Program
         CreateHostBuilder(args).Build().Run();
     }
 
-    public static IHostBuilder CreateHostBuilder(string[] args) =>
-        Host.CreateDefaultBuilder(args)
+    public static IHostBuilder CreateHostBuilder(string[] args)
+    {
+        // Ensure the content root is set to the application's directory
+        var pathToExe = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+        var pathToContentRoot = Path.GetDirectoryName(pathToExe);
+
+        return Host.CreateDefaultBuilder(args)
+            .UseContentRoot(pathToContentRoot)
             .UseWindowsService(options =>
             {
                 options.ServiceName = "Windows Error Catcher Service";
@@ -46,4 +52,5 @@ public static class Program
                 // Register the new Service Monitor service
                 services.AddHostedService<ServiceMonitorService>();
             });
+    }
 }

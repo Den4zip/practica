@@ -8,7 +8,6 @@ var builder = WebApplication.CreateBuilder(args);
 
 // --- 1. Конфигурация сервисов ---
 
-// Добавление поддержки Rate Limiting
 builder.Services.AddRateLimiter(options =>
 {
     var rateLimiterSettings = builder.Configuration.GetSection("RateLimiter");
@@ -23,7 +22,6 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
-// Регистрация MySqlConnection из MySqlConnector
 builder.Services.AddTransient<MySqlConnection>(_ => 
     new MySqlConnection(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -31,13 +29,10 @@ var app = builder.Build();
 
 // --- 2. Настройка конвейера обработки запросов (Middleware) ---
 
-// Включение Rate Limiter
 app.UseRateLimiter();
 
-// Middleware для авторизации по API-ключу
 app.Use(async (context, next) =>
 {
-    // Применяем только для эндпоинта /query на порту 8080
     if (context.Request.Path == "/query" && context.Request.Host.Port == 8080)
     {
         if (!context.Request.Headers.TryGetValue("X-Api-Key", out StringValues extractedApiKey))
@@ -65,7 +60,6 @@ app.UseStaticFiles();
 // --- 3. Определение эндпоинтов ---
 
 // Эндпоинт для приема SQL-запросов (порт 8080)
-// Защищен middleware для API-ключа и встроенным Rate Limiter'ом
 app.MapPost("/query", async (HttpContext context, MySqlConnection dbConnection) => {
     using var reader = new StreamReader(context.Request.Body, Encoding.UTF8);
     var sqlQuery = await reader.ReadToEndAsync();
@@ -93,14 +87,19 @@ app.MapPost("/query", async (HttpContext context, MySqlConnection dbConnection) 
 
 
 // Эндпоинт API для получения логов (порт 80) с расширенной фильтрацией
-app.MapGet("/api/logs", async (MySqlConnection dbConnection, int page = 1, int pageSize = 20, 
-                                 string? logName = null, string? machineName = null, 
-                                 string? source = null, string? search = null, 
-                                 string sortOrder = "desc") => 
+app.MapGet("/api/logs", async (MySqlConnection dbConnection, int page = 1, int pageSize = 30, 
+                                 string? eventType = null, string? logName = null, 
+                                 string? machineName = null, string? source = null, 
+                                 string? search = null, string sortOrder = "desc") => 
 {
     var whereClauses = new List<string>();
     var parameters = new Dictionary<string, object>();
 
+    if (!string.IsNullOrEmpty(eventType))
+    {
+        whereClauses.Add("EventType = @EventType");
+        parameters["@EventType"] = eventType;
+    }
     if (!string.IsNullOrEmpty(logName))
     {
         whereClauses.Add("LogName = @LogName");
@@ -127,14 +126,12 @@ app.MapGet("/api/logs", async (MySqlConnection dbConnection, int page = 1, int p
 
     await dbConnection.OpenAsync();
 
-    // Подсчет общего количества записей с учетом фильтров
-    var countSql = $"SELECT COUNT(*) FROM WindowsErrors {whereSql}";
+    var countSql = $"SELECT COUNT(*) FROM SystemLogs {whereSql}";
     var countCommand = new MySqlCommand(countSql, dbConnection);
     foreach (var p in parameters) countCommand.Parameters.AddWithValue(p.Key, p.Value);
     var totalCount = Convert.ToInt32(await countCommand.ExecuteScalarAsync());
 
-    // Получение порции логов для текущей страницы
-    var selectSql = $"SELECT Id, EventID, MachineName, Source, LevelDisplayName, LogName, TimeCreated, Message FROM WindowsErrors {whereSql} {orderBySql} LIMIT @PageSize OFFSET @Offset";
+    var selectSql = $"SELECT Id, EventID, MachineName, EventType, Source, LevelDisplayName, LogName, TimeCreated, Message FROM SystemLogs {whereSql} {orderBySql} LIMIT @PageSize OFFSET @Offset";
     var selectCommand = new MySqlCommand(selectSql, dbConnection);
     foreach (var p in parameters) selectCommand.Parameters.AddWithValue(p.Key, p.Value);
     selectCommand.Parameters.AddWithValue("@PageSize", pageSize);
@@ -147,11 +144,12 @@ app.MapGet("/api/logs", async (MySqlConnection dbConnection, int page = 1, int p
         {
             logs.Add(new {
                 Id = reader.GetInt32("Id"),
-                EventID = reader.IsDBNull(reader.GetOrdinal("EventID")) ? (int?)null : reader.GetInt32("EventID"),
                 MachineName = reader.GetString("MachineName"),
-                Source = reader.GetString("Source"),
-                LevelDisplayName = reader.GetString("LevelDisplayName"),
-                LogName = reader.GetString("LogName"),
+                EventType = reader.GetString("EventType"),
+                Source = reader.IsDBNull(reader.GetOrdinal("Source")) ? null : reader.GetString("Source"),
+                LevelDisplayName = reader.IsDBNull(reader.GetOrdinal("LevelDisplayName")) ? null : reader.GetString("LevelDisplayName"),
+                LogName = reader.IsDBNull(reader.GetOrdinal("LogName")) ? null : reader.GetString("LogName"),
+                EventID = reader.IsDBNull(reader.GetOrdinal("EventID")) ? (int?)null : reader.GetInt32("EventID"),
                 TimeCreated = reader.GetDateTime("TimeCreated"),
                 Message = reader.GetString("Message")
             });
@@ -169,7 +167,7 @@ app.MapGet("/api/logs", async (MySqlConnection dbConnection, int page = 1, int p
 app.MapGet("/api/logs/sources", async (MySqlConnection dbConnection) => {
     await dbConnection.OpenAsync();
     var sources = new List<string>();
-    var command = new MySqlCommand("SELECT DISTINCT Source FROM WindowsErrors ORDER BY Source", dbConnection);
+    var command = new MySqlCommand("SELECT DISTINCT Source FROM SystemLogs WHERE Source IS NOT NULL ORDER BY Source", dbConnection);
     using (var reader = await command.ExecuteReaderAsync())
     {
         while (await reader.ReadAsync())
@@ -178,6 +176,22 @@ app.MapGet("/api/logs/sources", async (MySqlConnection dbConnection) => {
         }
     }
     return Results.Ok(sources);
+})
+.RequireHost("*:80");
+
+// Эндпоинт для получения уникальных типов событий
+app.MapGet("/api/logs/eventtypes", async (MySqlConnection dbConnection) => {
+    await dbConnection.OpenAsync();
+    var eventTypes = new List<string>();
+    var command = new MySqlCommand("SELECT DISTINCT EventType FROM SystemLogs ORDER BY EventType", dbConnection);
+    using (var reader = await command.ExecuteReaderAsync())
+    {
+        while (await reader.ReadAsync())
+        {
+            eventTypes.Add(reader.GetString("EventType"));
+        }
+    }
+    return Results.Ok(eventTypes);
 })
 .RequireHost("*:80");
 

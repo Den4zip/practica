@@ -14,6 +14,7 @@ public class JsonErrorCacheService : BackgroundService, IErrorCacheService
     private readonly TimeSpan _retryInterval;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly string _serverUrl;
+    private readonly string _apiToken;
     
     private static readonly ConcurrentQueue<string> CommandQueue = new();
     private static readonly SemaphoreSlim FileLock = new(1, 1);
@@ -31,8 +32,7 @@ public class JsonErrorCacheService : BackgroundService, IErrorCacheService
         _retryInterval = TimeSpan.FromMinutes(retryMinutes);
         _serverUrl = configuration.GetValue<string>("ServerUrl") 
                      ?? throw new InvalidOperationException("Server URL is not configured.");
-
-        LoadCacheFromDisk();
+        _apiToken = configuration.GetValue<string>("ApiToken");
     }
 
     public async Task CacheCommand(string sqlCommand)
@@ -45,6 +45,15 @@ public class JsonErrorCacheService : BackgroundService, IErrorCacheService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("JSON Error Cache Service is running.");
+
+        try
+        {
+            await LoadCacheFromDisk();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load cache during service startup. Continuing with empty cache.");
+        }
 
         using var timer = new PeriodicTimer(_retryInterval);
 
@@ -63,6 +72,10 @@ public class JsonErrorCacheService : BackgroundService, IErrorCacheService
         
         using var client = _httpClientFactory.CreateClient("CacheRetryClient");
         client.BaseAddress = new Uri(_serverUrl);
+        if (!string.IsNullOrEmpty(_apiToken))
+        {
+            client.DefaultRequestHeaders.Add("X-Api-Key", _apiToken);
+        }
 
         while (CommandQueue.TryDequeue(out var sqlCommand))
         {
@@ -96,7 +109,7 @@ public class JsonErrorCacheService : BackgroundService, IErrorCacheService
         }
     }
 
-    private async void LoadCacheFromDisk()
+    private async Task LoadCacheFromDisk()
     {
         await FileLock.WaitAsync();
         try
@@ -113,10 +126,6 @@ public class JsonErrorCacheService : BackgroundService, IErrorCacheService
                 }
             }
             _logger.LogInformation("Loaded {Count} commands from cache.", CommandQueue.Count);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load commands from cache file.");
         }
         finally
         {

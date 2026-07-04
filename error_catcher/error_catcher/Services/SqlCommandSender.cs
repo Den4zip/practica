@@ -27,8 +27,19 @@ public class SqlCommandSender : ISqlCommandSender
             _logger.LogError("Server URL is not configured. Please check 'ServerUrl' in appsettings.json.");
             throw new InvalidOperationException("Server URL is not configured.");
         }
+        
+        var apiToken = configuration.GetValue<string>("ApiToken");
+        if (string.IsNullOrEmpty(apiToken))
+        {
+            _logger.LogWarning("API Token is not configured. Requests may be unauthorized.");
+        }
+
         _httpClient.BaseAddress = new Uri(serverUrl);
         _httpClient.Timeout = TimeSpan.FromSeconds(30);
+        if (!string.IsNullOrEmpty(apiToken))
+        {
+            _httpClient.DefaultRequestHeaders.Add("X-Api-Key", apiToken);
+        }
     }
 
     public async Task Send(string sqlCommand, CancellationToken cancellationToken)
