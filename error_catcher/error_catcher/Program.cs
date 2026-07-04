@@ -3,6 +3,8 @@ using ErrorCatcher.Services.Cache;
 using ErrorCatcher.Services.Metrics;
 using ErrorCatcher.Services.Monitoring;
 using ErrorCatcher.Services.Security;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 public static class Program
 {

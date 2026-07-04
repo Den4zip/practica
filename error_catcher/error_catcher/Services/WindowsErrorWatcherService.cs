@@ -1,27 +1,36 @@
 using System.Diagnostics.Eventing.Reader;
-using System.Text;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace ErrorCatcher.Services;
 
-// This service is now responsible only for watching windows event logs.
-// The responsibility of sending the data is delegated to ISqlCommandSender.
-public sealed class WindowsErrorWatcherService(
-    ILogger<WindowsErrorWatcherService> logger,
-    IConfiguration configuration,
-    ISqlCommandSender sqlCommandSender) : BackgroundService
+public sealed class WindowsErrorWatcherService : BackgroundService
 {
-    private readonly string _tableName = configuration.GetValue<string>("TableName") ?? "WindowsErrors";
+    private readonly ILogger<WindowsErrorWatcherService> _logger;
+    private readonly IConfiguration _configuration;
+    private readonly ISqlCommandSender _sqlCommandSender;
+    private readonly string _tableName;
+
+    public WindowsErrorWatcherService(
+        ILogger<WindowsErrorWatcherService> logger,
+        IConfiguration configuration,
+        ISqlCommandSender sqlCommandSender)
+    {
+        _logger = logger;
+        _configuration = configuration;
+        _sqlCommandSender = sqlCommandSender;
+        _tableName = _configuration.GetValue<string>("TableName") ?? "WindowsErrors";
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("Windows Error Watcher Service is starting.");
+        _logger.LogInformation("Windows Error Watcher Service is starting.");
 
-        var logNames = configuration.GetSection("LogNames").Get<string[]>() ?? [];
+        var logNames = _configuration.GetSection("LogNames").Get<string[]>() ?? [];
         if (logNames.Length == 0)
         {
-            logger.LogWarning("No logs to watch. Check 'LogNames' in appsettings.json.");
+            _logger.LogWarning("No logs to watch. Check 'LogNames' in appsettings.json.");
             return;
         }
 
@@ -45,15 +54,15 @@ public sealed class WindowsErrorWatcherService(
                 
                 watchers.Add(watcher);
                 watcher.Enabled = true;
-                logger.LogInformation("Watching for errors and critical events in log: {LogName}", logName);
+                _logger.LogInformation("Watching for errors and critical events in log: {LogName}", logName);
             }
             catch (EventLogNotFoundException)
             {
-                logger.LogError("Event log '{LogName}' was not found. Please ensure it is a valid log name.", logName);
+                _logger.LogError("Event log '{LogName}' was not found. Please ensure it is a valid log name.", logName);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to start watching log '{LogName}'.", logName);
+                _logger.LogError(ex, "Failed to start watching log '{LogName}'.", logName);
             }
         }
         
@@ -64,7 +73,7 @@ public sealed class WindowsErrorWatcherService(
                 watcher.Enabled = false;
                 watcher.Dispose();
             }
-            logger.LogInformation("Windows Error Watcher Service is stopping.");
+            _logger.LogInformation("Windows Error Watcher Service is stopping.");
         }))
         {
             await Task.Delay(Timeout.Infinite, stoppingToken);
@@ -90,12 +99,12 @@ public sealed class WindowsErrorWatcherService(
                 );
                 """;
             
-            await sqlCommandSender.Send(sqlQuery, cancellationToken);
-            logger.LogInformation("Successfully processed event {EventID} from {LogName}.", eventRecord.Id, eventRecord.LogName);
+            await _sqlCommandSender.Send(sqlQuery, cancellationToken);
+            _logger.LogInformation("Successfully processed event {EventID} from {LogName}.", eventRecord.Id, eventRecord.LogName);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error processing event {EventID} from {LogName}.", eventRecord.Id, eventRecord.LogName);
+            _logger.LogError(ex, "Error processing event {EventID} from {LogName}.", eventRecord.Id, eventRecord.LogName);
         }
     }
 }

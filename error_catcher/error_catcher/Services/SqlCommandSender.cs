@@ -5,26 +5,30 @@ using Microsoft.Extensions.Logging;
 
 namespace ErrorCatcher.Services;
 
-// This service handles the direct HTTP sending of SQL commands.
-// It now interacts with the caching service upon failure.
-public class SqlCommandSender(
-    ILogger<SqlCommandSender> logger,
-    IConfiguration configuration,
-    HttpClient httpClient,
-    IErrorCacheService cacheService) : ISqlCommandSender
+public class SqlCommandSender : ISqlCommandSender
 {
-    private readonly ILogger<SqlCommandSender> _logger = logger;
+    private readonly ILogger<SqlCommandSender> _logger;
+    private readonly HttpClient _httpClient;
+    private readonly IErrorCacheService _cacheService;
 
-    init
+    public SqlCommandSender(
+        ILogger<SqlCommandSender> logger,
+        IConfiguration configuration,
+        HttpClient httpClient,
+        IErrorCacheService cacheService)
     {
+        _logger = logger;
+        _httpClient = httpClient;
+        _cacheService = cacheService;
+
         var serverUrl = configuration.GetValue<string>("ServerUrl");
         if (string.IsNullOrEmpty(serverUrl))
         {
             _logger.LogError("Server URL is not configured. Please check 'ServerUrl' in appsettings.json.");
             throw new InvalidOperationException("Server URL is not configured.");
         }
-        httpClient.BaseAddress = new Uri(serverUrl);
-        httpClient.Timeout = TimeSpan.FromSeconds(30);
+        _httpClient.BaseAddress = new Uri(serverUrl);
+        _httpClient.Timeout = TimeSpan.FromSeconds(30);
     }
 
     public async Task Send(string sqlCommand, CancellationToken cancellationToken)
@@ -32,7 +36,7 @@ public class SqlCommandSender(
         try
         {
             var content = new StringContent(sqlCommand, Encoding.UTF8, "application/sql");
-            var response = await httpClient.PostAsync("", content, cancellationToken);
+            var response = await _httpClient.PostAsync("", content, cancellationToken);
 
             if (response.IsSuccessStatusCode)
             {
@@ -41,18 +45,18 @@ public class SqlCommandSender(
             else
             {
                 _logger.LogError("Failed to send SQL command. Status code: {StatusCode}. Caching command.", response.StatusCode);
-                await cacheService.CacheCommand(sqlCommand);
+                await _cacheService.CacheCommand(sqlCommand);
             }
         }
         catch (HttpRequestException ex)
         {
             _logger.LogError(ex, "Network error while sending SQL command. Caching command.");
-            await cacheService.CacheCommand(sqlCommand);
+            await _cacheService.CacheCommand(sqlCommand);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "An unexpected error occurred while sending SQL command. Caching command.");
-            await cacheService.CacheCommand(sqlCommand);
+            await _cacheService.CacheCommand(sqlCommand);
         }
     }
 }

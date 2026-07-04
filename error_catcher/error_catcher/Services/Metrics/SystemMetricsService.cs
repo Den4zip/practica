@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace ErrorCatcher.Services.Metrics;
@@ -15,7 +16,7 @@ public class SystemMetricsService : BackgroundService
 
     private readonly PerformanceCounter _cpuCounter;
     private readonly PerformanceCounter _ramCounter;
-    
+
     public SystemMetricsService(
         ILogger<SystemMetricsService> logger,
         IConfiguration configuration,
@@ -34,7 +35,8 @@ public class SystemMetricsService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("System Metrics Service is starting.");
+        // ... (rest of the file is unchanged)
+
 
         // Initial wait to get a reading from CPU counter
         await Task.Delay(1000, stoppingToken); 

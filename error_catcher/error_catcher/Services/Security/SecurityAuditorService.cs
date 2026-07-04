@@ -1,6 +1,7 @@
 using System.Diagnostics.Eventing.Reader;
 using System.Xml.Linq;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace ErrorCatcher.Services.Security;

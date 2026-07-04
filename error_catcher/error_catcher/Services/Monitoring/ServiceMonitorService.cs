@@ -1,5 +1,6 @@
 using System.ServiceProcess;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace ErrorCatcher.Services.Monitoring;
@@ -12,7 +13,6 @@ public class ServiceMonitorService : BackgroundService
     private readonly TimeSpan _pollingInterval;
     private readonly string _tableName = "ServiceAlerts";
     private readonly string _machineName = Environment.MachineName;
-
     private readonly Dictionary<string, ServiceControllerStatus> _serviceStatus;
 
     public ServiceMonitorService(
@@ -22,7 +22,6 @@ public class ServiceMonitorService : BackgroundService
     {
         _logger = logger;
         _sqlSender = sqlSender;
-
         _servicesToWatch = configuration.GetSection("ServiceMonitor:ServicesToWatch").Get<string[]>() ?? [];
         _pollingInterval = TimeSpan.FromMinutes(configuration.GetValue<int>("ServiceMonitor:PollingIntervalMinutes", 2));
         _serviceStatus = new Dictionary<string, ServiceControllerStatus>();
@@ -30,7 +29,8 @@ public class ServiceMonitorService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (_servicesToWatch.Length == 0)
+        // ... (rest of the file is unchanged)
+
         {
             _logger.LogWarning("No services to monitor. Check 'ServiceMonitor:ServicesToWatch' in appsettings.json.");
             return;
