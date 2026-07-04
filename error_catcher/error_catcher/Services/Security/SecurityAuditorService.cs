@@ -67,7 +67,7 @@ public class SecurityAuditorService : BackgroundService
             _logger.LogWarning("Failed logon detected for user: {User}", targetUser);
 
             var message = $"Failed logon attempt for user account: '{targetUser}'";
-            var sql = FormatSql(message, "Failed Logon");
+            var sql = FormatSql(message, "Failed Logon", eventRecord);
             
             await _sqlSender.Send(sql, cancellationToken);
         }
@@ -77,17 +77,20 @@ public class SecurityAuditorService : BackgroundService
         }
     }
 
-    private string FormatSql(string message, string alertType)
+    private string FormatSql(string message, string alertType, EventRecord eventRecord)
     {
         var sanitizedMessage = message.Replace("'", "''");
         return $$$"""
-            INSERT INTO SystemLogs (MachineName, EventType, Source, Message, TimeCreated)
+            INSERT INTO SystemLogs (EventType, EventID, MachineName, Source, LevelDisplayName, LogName, TimeCreated, Message)
             VALUES (
-                '{{{_machineName}}}',
                 'Security',
+                {{{eventRecord.Id}}},
+                '{{{_machineName}}}',
                 '{{{alertType}}}',
-                '{{{sanitizedMessage}}}',
-                '{{{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}}}'
+                'N/A',
+                'Security',
+                '{{{eventRecord.TimeCreated?.ToString("yyyy-MM-dd HH:mm:ss")}}}',
+                '{{{sanitizedMessage}}}'
             );
             """;
     }

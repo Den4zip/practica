@@ -14,7 +14,7 @@ public class JsonErrorCacheService : BackgroundService, IErrorCacheService
     private readonly TimeSpan _retryInterval;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly string _serverUrl;
-    private readonly string _apiToken;
+    private readonly string? _apiToken;
     
     private static readonly ConcurrentQueue<string> CommandQueue = new();
     private static readonly SemaphoreSlim FileLock = new(1, 1);

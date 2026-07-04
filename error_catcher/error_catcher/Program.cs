@@ -16,8 +16,10 @@ public static class Program
     public static IHostBuilder CreateHostBuilder(string[] args)
     {
         // Ensure the content root is set to the application's directory
-        var pathToExe = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
-        var pathToContentRoot = Path.GetDirectoryName(pathToExe);
+        var pathToExe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName 
+                        ?? throw new InvalidOperationException("Could not determine executable path.");
+        var pathToContentRoot = Path.GetDirectoryName(pathToExe) 
+                                ?? throw new InvalidOperationException("Could not determine content root path.");
 
         return Host.CreateDefaultBuilder(args)
             .UseContentRoot(pathToContentRoot)

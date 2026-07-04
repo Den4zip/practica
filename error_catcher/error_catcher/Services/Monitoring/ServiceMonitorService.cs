@@ -24,12 +24,13 @@ public class ServiceMonitorService : BackgroundService
         _servicesToWatch = configuration.GetSection("ServiceMonitor:ServicesToWatch").Get<string[]>() ?? [];
         _pollingInterval = TimeSpan.FromMinutes(configuration.GetValue<int>("ServiceMonitor:PollingIntervalMinutes", 2));
         _serviceStatus = new Dictionary<string, ServiceControllerStatus>();
+        
+        _logger.LogInformation("Loaded {Count} services to watch from configuration.", _servicesToWatch.Length);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // ... (rest of the file is unchanged)
-
+        if (_servicesToWatch.Length == 0)
         {
             _logger.LogWarning("No services to monitor. Check 'ServiceMonitor:ServicesToWatch' in appsettings.json.");
             return;
