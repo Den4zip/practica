@@ -11,7 +11,6 @@ public class ServiceMonitorService : BackgroundService
     private readonly ISqlCommandSender _sqlSender;
     private readonly string[] _servicesToWatch;
     private readonly TimeSpan _pollingInterval;
-    private readonly string _tableName = "ServiceAlerts";
     private readonly string _machineName = Environment.MachineName;
     private readonly Dictionary<string, ServiceControllerStatus> _serviceStatus;
 
@@ -113,9 +112,10 @@ public class ServiceMonitorService : BackgroundService
     {
         var sanitizedMessage = message.Replace("'", "''");
         return $$$"""
-            INSERT INTO {{{_tableName}}} (MachineName, ServiceName, Message, TimeCreated)
+            INSERT INTO SystemLogs (MachineName, EventType, Source, Message, TimeCreated)
             VALUES (
                 '{{{_machineName}}}',
+                'Service',
                 '{{{serviceName}}}',
                 '{{{sanitizedMessage}}}',
                 '{{{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}}}'

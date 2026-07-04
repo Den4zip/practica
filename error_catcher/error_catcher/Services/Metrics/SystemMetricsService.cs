@@ -11,7 +11,6 @@ public class SystemMetricsService : BackgroundService
     private readonly ISqlCommandSender _sqlSender;
     private readonly TimeSpan _pollingInterval;
     private readonly double _diskSpaceThreshold;
-    private readonly string _metricsTableName;
     private readonly string _machineName = Environment.MachineName;
 
     private readonly PerformanceCounter _cpuCounter;
@@ -27,7 +26,6 @@ public class SystemMetricsService : BackgroundService
 
         _pollingInterval = TimeSpan.FromMinutes(configuration.GetValue<int>("SystemMetrics:PollingIntervalMinutes", 5));
         _diskSpaceThreshold = configuration.GetValue<double>("SystemMetrics:DiskSpaceThresholdPercent", 10);
-        _metricsTableName = configuration.GetValue<string>("SystemMetrics:MetricsTableName") ?? "SystemMetrics";
 
         _cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
         _ramCounter = new PerformanceCounter("Memory", "Available MBytes");
@@ -100,9 +98,10 @@ public class SystemMetricsService : BackgroundService
     {
         var sanitizedMessage = message.Replace("'", "''");
         return $$$"""
-            INSERT INTO {{{_metricsTableName}}} (MachineName, MetricType, Message, Level, TimeCreated)
+            INSERT INTO SystemLogs (MachineName, EventType, Source, Message, LevelDisplayName, TimeCreated)
             VALUES (
                 '{{{_machineName}}}',
+                'Metric',
                 '{{{metricType}}}',
                 '{{{sanitizedMessage}}}',
                 '{{{level}}}',

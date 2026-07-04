@@ -10,7 +10,6 @@ public class SecurityAuditorService : BackgroundService
 {
     private readonly ILogger<SecurityAuditorService> _logger;
     private readonly ISqlCommandSender _sqlSender;
-    private readonly string _tableName = "SecurityAlerts"; // Or make this configurable
     private readonly string _machineName = Environment.MachineName;
     private readonly int _failedLogonEventId;
 
@@ -68,7 +67,7 @@ public class SecurityAuditorService : BackgroundService
             _logger.LogWarning("Failed logon detected for user: {User}", targetUser);
 
             var message = $"Failed logon attempt for user account: '{targetUser}'";
-            var sql = FormatSql(message);
+            var sql = FormatSql(message, "Failed Logon");
             
             await _sqlSender.Send(sql, cancellationToken);
         }
@@ -78,14 +77,15 @@ public class SecurityAuditorService : BackgroundService
         }
     }
 
-    private string FormatSql(string message)
+    private string FormatSql(string message, string alertType)
     {
         var sanitizedMessage = message.Replace("'", "''");
         return $$$"""
-            INSERT INTO {{{_tableName}}} (MachineName, AlertType, Message, TimeCreated)
+            INSERT INTO SystemLogs (MachineName, EventType, Source, Message, TimeCreated)
             VALUES (
                 '{{{_machineName}}}',
-                'Failed Logon',
+                'Security',
+                '{{{alertType}}}',
                 '{{{sanitizedMessage}}}',
                 '{{{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}}}'
             );

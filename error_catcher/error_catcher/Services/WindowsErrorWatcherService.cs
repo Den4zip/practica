@@ -10,7 +10,6 @@ public sealed class WindowsErrorWatcherService : BackgroundService
     private readonly ILogger<WindowsErrorWatcherService> _logger;
     private readonly IConfiguration _configuration;
     private readonly ISqlCommandSender _sqlCommandSender;
-    private readonly string _tableName;
 
     public WindowsErrorWatcherService(
         ILogger<WindowsErrorWatcherService> logger,
@@ -20,7 +19,6 @@ public sealed class WindowsErrorWatcherService : BackgroundService
         _logger = logger;
         _configuration = configuration;
         _sqlCommandSender = sqlCommandSender;
-        _tableName = _configuration.GetValue<string>("TableName") ?? "WindowsErrors";
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -87,8 +85,9 @@ public sealed class WindowsErrorWatcherService : BackgroundService
             var sanitizedMessage = (eventRecord.FormatDescription() ?? "No message").Replace("'", "''");
 
             var sqlQuery = $$$"""
-                INSERT INTO {{{_tableName}}} (EventID, MachineName, Source, LevelDisplayName, LogName, TimeCreated, Message)
+                INSERT INTO SystemLogs (EventType, EventID, MachineName, Source, LevelDisplayName, LogName, TimeCreated, Message)
                 VALUES (
+                    'WindowsError',
                     {{{eventRecord.Id}}},
                     '{{{eventRecord.MachineName}}}',
                     '{{{eventRecord.ProviderName}}}',
