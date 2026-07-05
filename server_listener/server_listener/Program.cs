@@ -55,7 +55,17 @@ app.Use(async (context, next) =>
 });
 
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        // Устанавливаем заголовок Content-Type с указанием кодировки UTF-8 для .js файлов
+        if (ctx.File.Name.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Context.Response.ContentType = "application/javascript; charset=utf-8";
+        }
+    }
+});
 
 // --- 3. Определение эндпоинтов ---
 
