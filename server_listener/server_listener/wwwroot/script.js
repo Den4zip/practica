@@ -18,8 +18,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const statusText = document.getElementById('status-text');
 
     // --- Переменные состояния ---
-    let allLogs = [];           // Все данные с сервера
-    let filteredLogs = [];      // Отфильтрованные данные для показа
+    let allLogs = [];
+    let filteredLogs = [];
     let currentPage = 1;
     let autoUpdateInterval = null;
 
@@ -40,16 +40,13 @@ document.addEventListener('DOMContentLoaded', function () {
             applyFiltersAndRender();
             addError('[ИНФО] Фильтры сброшены.');
         });
-        
         searchFilter.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') applyFiltersAndRender();
         });
-
         itemsPerPageSelect.addEventListener('change', () => {
             currentPage = 1;
             render();
         });
-
         autoUpdateCheck.addEventListener('change', function () {
             if (this.checked) {
                 addError('[ИНФО] Автообновление включено (15 сек).');
@@ -60,14 +57,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 addError('[ИНФО] Автообновление отключено.');
             }
         });
-
         exportCSVBtn.addEventListener('click', exportToCSV);
         clearErrorsBtn.addEventListener('click', clearErrorLog);
         logsTableBody.addEventListener('click', handleTableRowClick);
     }
 
     // --- Загрузка и обработка данных ---
-
     async function loadDataFromServer() {
         try {
             setOnlineStatus(true);
@@ -75,22 +70,19 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!response.ok) {
                 throw new Error(`Ошибка сети: ${response.status} ${response.statusText}`);
             }
-            
             const data = await response.json();
 
             if (Array.isArray(data)) {
                 allLogs = data;
-            } else if (data && Array.isArray(data.Logs)) {
-                allLogs = data.Logs;
+            } else if (data && Array.isArray(data.logs)) {
+                allLogs = data.logs;
             } else {
                 throw new Error('API вернул данные в неожиданном формате.');
             }
             
             addError(`[ИНФО] Загружено ${allLogs.length} записей из базы данных.`);
-            
             updateFilterDropdowns();
             applyFiltersAndRender();
-
         } catch (error) {
             addError(`[ОШИБКА] Не удалось получить данные: ${error.message}`);
             setOnlineStatus(false);
@@ -105,21 +97,20 @@ document.addEventListener('DOMContentLoaded', function () {
         const sort = sortOrder.value;
 
         filteredLogs = allLogs.filter(item => {
-            const matchType = !type || item.EventType === type;
-            const matchSource = !source || item.Source === source;
-            const matchLog = !logName || item.LogName === logName;
+            const matchType = !type || item.eventType === type;
+            const matchSource = !source || item.source === source;
+            const matchLog = !logName || item.logName === logName;
             const matchSearch = !search ||
-                (item.Message && item.Message.toLowerCase().includes(search)) ||
-                (item.MachineName && item.MachineName.toLowerCase().includes(search));
+                (item.message && item.message.toLowerCase().includes(search)) ||
+                (item.machineName && item.machineName.toLowerCase().includes(search));
             return matchType && matchSource && matchLog && matchSearch;
         });
 
         filteredLogs.sort((a, b) => {
-            const dateA = new Date(a.TimeCreated || 0);
-            const dateB = new Date(b.TimeCreated || 0);
+            const dateA = new Date(a.timeCreated || 0);
+            const dateB = new Date(b.timeCreated || 0);
             return sort === 'asc' ? dateA - dateB : dateB - dateA;
         });
-
         currentPage = 1;
         render();
     }
@@ -136,13 +127,11 @@ document.addEventListener('DOMContentLoaded', function () {
             });
             select.value = currentValue;
         };
-        
-        populate(sourceFilter, [...new Set(allLogs.map(item => item.Source).filter(Boolean))].sort());
-        populate(logNameFilter, [...new Set(allLogs.map(item => item.LogName).filter(Boolean))].sort());
+        populate(sourceFilter, [...new Set(allLogs.map(item => item.source).filter(Boolean))].sort());
+        populate(logNameFilter, [...new Set(allLogs.map(item => item.logName).filter(Boolean))].sort());
     }
 
     // --- Функции для отрисовки ---
-
     function render() {
         updateStats();
         renderTable();
@@ -151,12 +140,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function updateStats() {
         const getCount = (filterFunc) => filteredLogs.filter(filterFunc).length;
-        const getLevel = (levelStr) => (d) => (d.LevelDisplayName || '').toLowerCase().includes(levelStr);
-
+        const getLevel = (levelStr) => (d) => (d.levelDisplayName || '').toLowerCase().includes(levelStr);
         document.getElementById('stat-total').innerText = filteredLogs.length;
-        document.getElementById('stat-errors').innerText = getCount(getLevel('error'));
-        document.getElementById('stat-warnings').innerText = getCount(getLevel('warning'));
-        document.getElementById('stat-infos').innerText = getCount(getLevel('info'));
+        document.getElementById('stat-errors').innerText = getCount(getLevel('ошибка')) + getCount(getLevel('error'));
+        document.getElementById('stat-warnings').innerText = getCount(getLevel('предупреждение')) + getCount(getLevel('warning'));
+        document.getElementById('stat-infos').innerText = getCount(getLevel('инфо')) + getCount(getLevel('info'));
     }
 
     function renderTable() {
@@ -173,16 +161,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
         pageData.forEach(log => {
             const row = document.createElement('tr');
-            row.dataset.id = log.Id;
-            const message = log.Message ? (log.Message.length > 50 ? log.Message.substring(0, 50) + '...' : log.Message) : 'Пустое сообщение';
+            row.dataset.id = log.id;
+            const message = log.message ? (log.message.length > 50 ? log.message.substring(0, 50) + '...' : log.message) : 'Пустое сообщение';
             row.innerHTML = `
-                <td>${log.Id}</td>
-                <td>${new Date(log.TimeCreated).toLocaleString('ru-RU')}</td>
-                <td>${log.EventType || 'N/A'}</td>
-                <td>${getLevelBadge(log.LevelDisplayName)}</td>
-                <td style="text-align: center;">${log.MachineName || 'N/A'}</td>
-                <td>${log.Source || 'N/A'}</td>
-                <td>${log.LogName || 'N/A'}</td>
+                <td>${log.id}</td>
+                <td>${new Date(log.timeCreated).toLocaleString('ru-RU')}</td>
+                <td>${log.eventType || 'N/A'}</td>
+                <td>${getLevelBadge(log.levelDisplayName)}</td>
+                <td style="text-align: center;">${log.machineName || 'N/A'}</td>
+                <td>${log.source || 'N/A'}</td>
+                <td>${log.logName || 'N/A'}</td>
                 <td>${escapeHtml(message)}</td>
             `;
             logsTableBody.appendChild(row);
@@ -203,14 +191,11 @@ document.addEventListener('DOMContentLoaded', function () {
         };
 
         paginationControls.appendChild(createPageLink(currentPage - 1, 'Назад', currentPage === 1));
-
-        // Simplified pagination display for brevity
         for (let i = 1; i <= totalPages; i++) {
              if (i === currentPage || (i >= currentPage - 2 && i <= currentPage + 2)) {
                 paginationControls.appendChild(createPageLink(i, i, false, i === currentPage));
              }
         }
-        
         paginationControls.appendChild(createPageLink(currentPage + 1, 'Вперед', currentPage === totalPages));
 
         paginationControls.querySelectorAll('.page-link').forEach(link => {
@@ -236,13 +221,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // --- Вспомогательные функции ---
-
     function exportToCSV() {
         if (filteredLogs.length === 0) return addError('[ВНИМАНИЕ] Нет данных для экспорта!');
-        
         const headers = ['ID', 'Время', 'Тип события', 'Уровень', 'Компьютер', 'Источник', 'Журнал', 'Сообщение'];
         const rows = filteredLogs.map(row => [
-            row.Id, `"${new Date(row.TimeCreated).toLocaleString('ru-RU')}"`, row.EventType, row.LevelDisplayName, row.MachineName, row.Source, row.LogName, `"${(row.Message || '').replace(/"/g, '""')}"`
+            row.id, `"${new Date(row.timeCreated).toLocaleString('ru-RU')}"`, row.eventType, row.levelDisplayName, row.machineName, row.source, row.logName, `"${(row.message || '').replace(/"/g, '""')}"`
         ].join(','));
         const csvContent = [headers.join(','), ...rows].join('
 ');
@@ -258,17 +241,17 @@ document.addEventListener('DOMContentLoaded', function () {
     function handleTableRowClick(e) {
         const row = e.target.closest('tr');
         if (!row || !row.dataset.id) return;
-        const item = allLogs.find(d => d.Id == row.dataset.id);
+        const item = allLogs.find(d => d.id == row.dataset.id);
         if (!item) return;
 
-        document.getElementById('modal-id').innerText = `ID: ${item.Id}`;
-        document.getElementById('modal-time').innerText = new Date(item.TimeCreated).toLocaleString('ru-RU');
-        document.getElementById('modal-computer').innerText = item.MachineName;
-        document.getElementById('modal-type').innerText = item.EventType;
-        document.getElementById('modal-level').innerHTML = getLevelBadge(item.LevelDisplayName);
-        document.getElementById('modal-source').innerText = item.Source;
-        document.getElementById('modal-logname').innerText = item.LogName;
-        document.getElementById('modal-message').innerText = item.Message;
+        document.getElementById('modal-id').innerText = `ID: ${item.id}`;
+        document.getElementById('modal-time').innerText = new Date(item.timeCreated).toLocaleString('ru-RU');
+        document.getElementById('modal-computer').innerText = item.machineName;
+        document.getElementById('modal-type').innerText = item.eventType;
+        document.getElementById('modal-level').innerHTML = getLevelBadge(item.levelDisplayName);
+        document.getElementById('modal-source').innerText = item.source;
+        document.getElementById('modal-logname').innerText = item.logName;
+        document.getElementById('modal-message').innerText = item.message;
         new bootstrap.Modal(document.getElementById('detailModal')).show();
     }
 
