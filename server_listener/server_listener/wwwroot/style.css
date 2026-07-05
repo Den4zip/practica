@@ -109,3 +109,55 @@ input[type="text"] {
 .badge-level-warning { background: #fef3c7; color: #92400e; }
 .badge-level-info { background: #dbeafe; color: #1e40af; }
 .badge-level-default { background: #f3f4f6; color: #6b7280; }
+
+.table-scroll-wrapper {
+    max-height: 60vh;
+    overflow: auto;
+    border-radius: 0.5rem;
+}
+
+.table-scroll-wrapper thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.table-scroll-wrapper thead th {
+    background: #ffe4e6;
+    box-shadow: 0 1px 0 #fecdd3;
+}
+
+#tableSection {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    max-height: 70vh;
+}
+
+.table-scroll-wrapper {
+    flex: 1;
+    min-height: 0;
+}
+
+.table-scroll-wrapper table {
+    width: 100%;
+}
+
+.table-scroll-wrapper::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.table-scroll-wrapper::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.table-scroll-wrapper::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.table-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+}

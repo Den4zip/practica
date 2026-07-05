@@ -4,45 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BEACON — Панель мониторинга</title>
+    <link rel="icon" type="image/png" href="favicon.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-
-    <style>
-        html, body { overflow-x: auto; overflow-y: auto; min-height: 100vh; }
-        ::-webkit-scrollbar { width: 10px; height: 10px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #dc3545; border-radius: 5px; }
-        ::-webkit-scrollbar-thumb:hover { background: #bb2d3b; }
-
-        .main-wrapper { max-width: 1600px; margin: 0 auto; padding: 0 15px; width: 100%; }
-        .filter-scroll { overflow-x: auto; overflow-y: visible; }
-
-        #status-indicator {
-            display: inline-block; width: 14px; height: 14px; border-radius: 50%;
-            background-color: #198754; margin-right: 8px;
-            border: 2px solid #fff; box-shadow: 0 0 5px rgba(0,0,0,0.1);
-        }
-        #status-indicator.offline { background-color: #dc3545; }
-
-        #error-wrapper { border: 1px solid #dee2e6; border-radius: 6px; margin-bottom: 1rem; overflow: hidden; }
-        #error-header { background-color: #e9ecef; padding: 8px 15px; border-bottom: 1px solid #dee2e6; display: flex; justify-content: space-between; align-items: center; }
-        #error-container {
-            background-color: #f8f9fa; min-height: 60px; max-height: 200px;
-            overflow-y: auto; overflow-x: auto; padding: 10px;
-            font-family: 'Courier New', Courier, monospace; font-size: 0.9rem; position: relative;
-        }
-        #error-container .empty-state { display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; color: #6c757d; font-weight: 500; position: absolute; top: 0; left: 0; }
-        #error-container.has-errors .empty-state { display: none; }
-        #error-container .error-line { padding: 2px 0; color: #dc3545; border-bottom: 1px solid #eee; }
-        #error-container .error-line:last-child { border-bottom: none; }
-        .error-time { color: #495057; font-weight: bold; }
-
-        .action-buttons { display: flex; gap: 10px; width: 100%; }
-        @media (min-width: 768px) { .action-buttons { flex-wrap: nowrap; } }
-    </style>
 </head>
 <body class="bg-gray-100 min-h-screen font-['Inter',system-ui,sans-serif']">
 
@@ -51,11 +18,7 @@
         <!-- ===== HEADER ===== -->
         <header class="flex items-center justify-between mb-6">
             <div class="flex items-center gap-3">
-                <svg class="w-9 h-9 text-red-600" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.18l6 3.16v6.32l-6 3.16-6-3.16V7.34l6-3.16z"/>
-                    <path d="M11 10h2v5h-2zm0-3h2v2h-2z"/>
-                </svg>
-                <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">BEACON</h1>
+                <img src="logo_full.png" alt="BEACON" class="h-10 w-auto">
             </div>
             <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200">
                 <span class="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]"></span>
@@ -152,43 +115,45 @@
             </div>
         </section>
 
-        <!-- ===== TABLE ===== -->
-        <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-            <table class="w-full border-collapse">
-                <thead>
-                    <tr class="bg-rose-100">
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200">ID</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200">Время</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200">Тип события</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200">Уровень</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200">Компьютер</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200">Источник</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200">Журнал</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200">Сообщение</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr class="bg-gray-50 border-b border-gray-200">
-                        <td colspan="8" class="px-3 py-2">
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-2 text-sm text-gray-500">
-                                    <span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span>
-                                    <span>Журнал системных ошибок</span>
+        <!-- ===== TABLE SECTION ===== -->
+        <section id="tableSection" class="bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div class="table-scroll-wrapper">
+                <table class="w-full border-collapse">
+                    <thead>
+                        <tr class="bg-rose-100">
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200 whitespace-nowrap">ID</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200 whitespace-nowrap">Время</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200 whitespace-nowrap">Тип события</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200 whitespace-nowrap">Уровень</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200 whitespace-nowrap">Компьютер</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200 whitespace-nowrap">Источник</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200 whitespace-nowrap">Журнал</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-rose-200 whitespace-nowrap">Сообщение</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="bg-gray-50 border-b border-gray-200">
+                            <td colspan="8" class="px-3 py-2">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2 text-sm text-gray-500">
+                                        <span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span>
+                                        <span>Журнал системных ошибок</span>
+                                    </div>
+                                    <button id="clearBtn" class="text-xs text-red-600 border border-red-400 rounded px-3 py-1 hover:bg-red-50 transition-colors">Очистить</button>
                                 </div>
-                                <button id="clearBtn" class="text-xs text-red-600 border border-red-400 rounded px-3 py-1 hover:bg-red-50 transition-colors">Очистить</button>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-                <tbody id="logs-table-body">
-                    <tr>
-                        <td colspan="8" class="px-3 py-16 text-center">
-                            <p class="text-gray-400 text-sm">Нет ошибок</p>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tbody id="logs-table-body">
+                        <tr>
+                            <td colspan="8" class="px-3 py-16 text-center">
+                                <p class="text-gray-400 text-sm">Нет записей</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
 
         <!-- ===== FOOTER / PAGINATION ===== -->
         <div class="flex flex-wrap items-center justify-end gap-4 mt-4">
@@ -206,36 +171,6 @@
             </nav>
         </div>
 
-    </div>
-
-    <!-- Модальное окно -->
-    <div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title">Детали события <span id="modal-id" class="ms-2 badge bg-light text-dark"></span></h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row g-3">
-                        <div class="col-6"><strong>Время:</strong> <span id="modal-time"></span></div>
-                        <div class="col-6"><strong>Компьютер:</strong> <span id="modal-computer"></span></div>
-                        <div class="col-6"><strong>Тип события:</strong> <span id="modal-type"></span></div>
-                        <div class="col-6"><strong>Уровень:</strong> <span id="modal-level"></span></div>
-                        <div class="col-6"><strong>Источник:</strong> <span id="modal-source"></span></div>
-                        <div class="col-6"><strong>Журнал:</strong> <span id="modal-logname"></span></div>
-                        <div class="col-12 mt-3">
-                            <hr>
-                            <strong>Полное сообщение:</strong>
-                            <p id="modal-message" class="p-3 bg-light rounded border mt-2"></p>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
-                </div>
-            </div>
-        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
