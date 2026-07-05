@@ -105,24 +105,23 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             const data = await response.json();
 
-            if (data.error && !isBackground) {
-                throw new Error(`Ошибка API: ${data.error}`);
+            if (data.Error && !isBackground) {
+                throw new Error(`Ошибка API: ${data.Error}`);
             }
             
-            currentPageData = data.logs || [];
+            currentPageData = data.Logs || [];
             renderTable(currentPageData);
-            renderPagination(data.totalPages);
-            updateStats(data.stats);
+            renderPagination(data.TotalPages);
+            updateStats(data); // Передаем весь объект данных
 
             // Обновляем фильтры, чтобы показывать только релевантные опции
-            // Это может быть полезно, если набор источников/типов меняется в зависимости от других фильтров
             fetchDynamicOptions('/api/logs/eventtypes', eventTypeFilter, 'типы событий', true);
             fetchDynamicOptions('/api/logs/sources', sourceFilter, 'источники', true);
             fetchDynamicOptions('/api/logs/lognames', logNameFilter, 'имена журналов', true);
             
             setOnlineStatus(true);
             if (!isBackground) {
-                 addError(`[ИНФО] Загружено ${currentPageData.length} записей (Страница ${currentPage} из ${data.totalPages}).`);
+                 addError(`[ИНФО] Загружено ${currentPageData.length} записей (Страница ${currentPage} из ${data.TotalPages || 1}).`);
             }
 
         } catch (error) {
@@ -171,18 +170,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
         logs.forEach(log => {
             const row = document.createElement('tr');
-            row.dataset.id = log.id; // Убедитесь, что свойство ID в нижнем регистре
+            row.dataset.id = log.Id;
             
-            const message = log.message ? (log.message.length > 50 ? log.message.substring(0, 50) + '...' : log.message) : 'Пустое сообщение';
+            const message = log.Message ? (log.Message.length > 50 ? log.Message.substring(0, 50) + '...' : log.Message) : 'Пустое сообщение';
 
             row.innerHTML = `
-                <td>${log.id}</td>
-                <td>${new Date(log.timeCreated).toLocaleString('ru-RU')}</td>
-                <td>${log.eventType || 'N/A'}</td>
-                <td>${getLevelBadge(log.levelDisplayName)}</td>
-                <td style="text-align: center;">${log.machineName || 'N/A'}</td>
-                <td>${log.source || 'N/A'}</td>
-                <td>${log.logName || 'N/A'}</td>
+                <td>${log.Id}</td>
+                <td>${new Date(log.TimeCreated).toLocaleString('ru-RU')}</td>
+                <td>${log.EventType || 'N/A'}</td>
+                <td>${getLevelBadge(log.LevelDisplayName)}</td>
+                <td style="text-align: center;">${log.MachineName || 'N/A'}</td>
+                <td>${log.Source || 'N/A'}</td>
+                <td>${log.LogName || 'N/A'}</td>
                 <td>${escapeHtml(message)}</td>
             `;
             logsTableBody.appendChild(row);
@@ -209,10 +208,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return li;
         };
         
-        // Кнопка "Назад"
         paginationControls.appendChild(createPageLink(currentPage - 1, 'Назад', currentPage === 1));
 
-        // Логика отображения страниц
         let startPage = Math.max(1, currentPage - 2);
         let endPage = Math.min(totalPages, currentPage + 2);
         
@@ -230,10 +227,8 @@ document.addEventListener('DOMContentLoaded', function() {
             paginationControls.appendChild(createPageLink(totalPages, totalPages));
         }
 
-        // Кнопка "Вперед"
         paginationControls.appendChild(createPageLink(currentPage + 1, 'Вперед', currentPage === totalPages));
         
-        // Добавляем обработчики на ссылки пагинации
         paginationControls.querySelectorAll('.page-link').forEach(link => {
             if (link.parentElement.classList.contains('disabled')) return;
             link.addEventListener('click', (e) => {
@@ -247,15 +242,21 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    function updateStats(stats) {
-        if (!stats) {
-            console.warn('Объект статистики не получен от API.');
-            stats = { total: 0, errors: 0, warnings: 0, infos: 0 }; // default
+    function updateStats(data) {
+        if (!data) {
+            document.getElementById('stat-total').innerText = 0;
+            document.getElementById('stat-errors').innerText = 0;
+            document.getElementById('stat-warnings').innerText = 0;
+            document.getElementById('stat-infos').innerText = 0;
+            return;
         }
-        document.getElementById('stat-total').innerText = stats.total ?? 0;
-        document.getElementById('stat-errors').innerText = stats.errors ?? 0;
-        document.getElementById('stat-warnings').innerText = stats.warnings ?? 0;
-        document.getElementById('stat-infos').innerText = stats.infos ?? 0;
+        
+        const statsSource = data.Stats || data;
+
+        document.getElementById('stat-total').innerText = statsSource.TotalCount ?? statsSource.Total ?? 0;
+        document.getElementById('stat-errors').innerText = statsSource.ErrorCount ?? statsSource.Errors ?? 0;
+        document.getElementById('stat-warnings').innerText = statsSource.WarningCount ?? statsSource.Warnings ?? 0;
+        document.getElementById('stat-infos').innerText = statsSource.InfoCount ?? statsSource.Infos ?? 0;
     }
 
     // --- Вспомогательные функции ---
@@ -282,7 +283,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const response = await fetch(url);
             if (!response.ok) throw new Error('Сетевая ошибка при экспорте');
             const data = await response.json();
-            const logsToExport = data.logs;
+            const logsToExport = data.Logs;
 
             if (!logsToExport || logsToExport.length === 0) {
                 return addError('[ВНИМАНИЕ] Нет данных для экспорта, соответствующих текущим фильтрам!');
@@ -290,7 +291,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const headers = ['ID', 'Время', 'Тип события', 'Уровень', 'Компьютер', 'Источник', 'Журнал', 'Сообщение'];
             const rows = logsToExport.map(row => [
-                row.id, `"${new Date(row.timeCreated).toLocaleString('ru-RU')}"`, row.eventType, row.levelDisplayName, row.machineName, row.source, row.logName, `"${(row.message || '').replace(/"/g, '""')}"`
+                row.Id, `"${new Date(row.TimeCreated).toLocaleString('ru-RU')}"`, row.EventType, row.LevelDisplayName, row.MachineName, row.Source, row.LogName, `"${(row.Message || '').replace(/"/g, '""')}"`
             ].join(','));
             
             const csvContent = [headers.join(','), ...rows].join('
@@ -328,20 +329,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const row = e.target.closest('tr');
         if (!row || !row.dataset.id) return;
         
-        const item = currentPageData.find(d => d.id == row.dataset.id);
+        const item = currentPageData.find(d => d.Id == row.dataset.id);
         if(!item) {
             addError(`[ВНИМАНИЕ] Не удалось найти данные для ID ${row.dataset.id}`);
             return;
         }
         
-        document.getElementById('modal-id').innerText = `ID: ${item.id}`;
-        document.getElementById('modal-time').innerText = new Date(item.timeCreated).toLocaleString('ru-RU');
-        document.getElementById('modal-computer').innerText = item.machineName;
-        document.getElementById('modal-type').innerText = item.eventType;
-        document.getElementById('modal-level').innerHTML = getLevelBadge(item.levelDisplayName);
-        document.getElementById('modal-source').innerText = item.source;
-        document.getElementById('modal-logname').innerText = item.logName;
-        document.getElementById('modal-message').innerText = item.message;
+        document.getElementById('modal-id').innerText = `ID: ${item.Id}`;
+        document.getElementById('modal-time').innerText = new Date(item.TimeCreated).toLocaleString('ru-RU');
+        document.getElementById('modal-computer').innerText = item.MachineName;
+        document.getElementById('modal-type').innerText = item.EventType;
+        document.getElementById('modal-level').innerHTML = getLevelBadge(item.LevelDisplayName);
+        document.getElementById('modal-source').innerText = item.Source;
+        document.getElementById('modal-logname').innerText = item.LogName;
+        document.getElementById('modal-message').innerText = item.Message;
         
         new bootstrap.Modal(document.getElementById('detailModal')).show();
     }
