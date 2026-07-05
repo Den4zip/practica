@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', function () {
 
-    // ===== DOM refs =====
     const $ = (id) => document.getElementById(id);
     const eventTypeFilter = $('eventTypeFilter');
     const sourceFilter = $('sourceFilter');
@@ -21,18 +20,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const statWarnings = $('stat-warnings');
     const statInformation = $('stat-information');
 
-    // ===== State =====
     let currentPage = 1;
     let pageSize = 10;
     let autoUpdateInterval = null;
 
-    // ===== Init =====
     fetchStats();
     fetchEventTypes();
     fetchSources();
     fetchLogs();
-
-    // ===== Handlers =====
 
     applyFilters.addEventListener('click', () => {
         currentPage = 1;
@@ -69,7 +64,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    clearBtn.addEventListener('click', async function () {
+    clearBtn.addEventListener('click', function () {
         logsBody.innerHTML = `
             <tr>
                 <td colspan="8" class="px-3 py-16 text-center">
@@ -84,8 +79,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     exportCsvBtn.addEventListener('click', exportToCsv);
-
-    // ===== API calls =====
 
     function fetchStats() {
         fetch('/api/logs/stats')
@@ -116,10 +109,8 @@ document.addEventListener('DOMContentLoaded', function () {
             .catch(() => {});
     }
 
-    // --- Загрузка и обработка данных ---
-    async function loadInitialData() {
-        await fetchLogs();
-        await loadFilterOptions();
+    function fetchEventTypes() {
+        fetchDynamicOptions('/api/logs/eventtypes', eventTypeFilter);
     }
 
     function fetchSources() {
@@ -153,8 +144,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!silent) console.error('fetchLogs error:', err);
             });
     }
-
-    // ===== Render =====
 
     function renderTable(logs) {
         if (!logs || logs.length === 0) {
@@ -197,55 +186,6 @@ document.addEventListener('DOMContentLoaded', function () {
         return 'table-row-info';
     }
 
-    function renderPagination() {
-        const paginationControlsElement = document.getElementById('pagination-controls');
-        if (!paginationControlsElement) {
-            addError('[ОШИБКА] Элемент пагинации "pagination-controls" не найден.');
-            return;
-        }
-        paginationControlsElement.innerHTML = '';
-        if (totalPages <= 1) return;
-
-        const createPageLink = (page, text, isDisabled = false, isActive = false) => {
-            const li = document.createElement('li');
-            li.className = `page-item ${isDisabled ? 'disabled' : ''} ${isActive ? 'active' : ''}`;
-            const link = document.createElement('a');
-            link.className = 'page-link';
-            link.href = '#';
-            link.dataset.page = page;
-            link.innerText = text;
-            li.appendChild(link);
-            return li;
-        };
-        
-        const addPage = (page, text = page) => {
-            paginationControlsElement.appendChild(createPageLink(page, text, false, page === currentPage));
-        };
-        
-        const addEllipsis = () => {
-            const li = document.createElement('li');
-            li.className = 'page-item disabled';
-            li.innerHTML = `<span class="page-link">...</span>`;
-            paginationControlsElement.appendChild(li);
-        };
-        
-        paginationControlsElement.appendChild(createPageLink(currentPage - 1, 'Назад', currentPage === 1));
-
-        if (totalPages <= 7) {
-            for (let i = 1; i <= totalPages; i++) addPage(i);
-        } else {
-            addPage(1);
-            if (currentPage > 3) addEllipsis();
-            if (currentPage > 2) addPage(currentPage - 1);
-            if (currentPage !== 1 && currentPage !== totalPages) addPage(currentPage);
-            if (currentPage < totalPages - 1) addPage(currentPage + 1);
-            if (currentPage < totalPages - 2) addEllipsis();
-            addPage(totalPages);
-        }
-
-        paginationControlsElement.appendChild(createPageLink(currentPage + 1, 'Вперед', currentPage === totalPages));
-    }
-
     function getLevelBadge(level) {
         if (!level) return 'badge-level-default';
         const l = level.toLowerCase();
@@ -271,8 +211,6 @@ document.addEventListener('DOMContentLoaded', function () {
         div.textContent = str;
         return div.innerHTML;
     }
-
-    // ===== Pagination =====
 
     function renderPagination(totalPages) {
         paginationControls.innerHTML = '';
@@ -327,8 +265,6 @@ document.addEventListener('DOMContentLoaded', function () {
         span.textContent = '…';
         return span;
     }
-
-    // ===== CSV Export =====
 
     function exportToCsv() {
         const params = new URLSearchParams();
