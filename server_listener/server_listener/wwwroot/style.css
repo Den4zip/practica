@@ -161,3 +161,12 @@ input[type="text"] {
 .table-scroll-wrapper::-webkit-scrollbar-thumb:hover {
     background: #a1a1a1;
 }
+
+.detail-row {
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+.detail-row:hover {
+    filter: brightness(0.97);
+}

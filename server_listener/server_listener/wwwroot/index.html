@@ -33,15 +33,15 @@
                 <p class="text-4xl font-bold" id="stat-total">0</p>
             </div>
             <div class="rounded-lg p-5 text-white bg-red-600 shadow-md">
-                <p class="text-sm font-medium opacity-90 mb-1">Ошибки</p>
+                <p class="text-sm font-medium opacity-90 mb-1">Ошибки <span class="text-xs opacity-75">(<span id="stat-errors-count">0</span>)</span></p>
                 <p class="text-4xl font-bold" id="stat-errors">0</p>
             </div>
             <div class="rounded-lg p-5 text-white bg-yellow-500 shadow-md">
-                <p class="text-sm font-medium opacity-90 mb-1">Предупреждения</p>
+                <p class="text-sm font-medium opacity-90 mb-1">Предупреждения <span class="text-xs opacity-75">(<span id="stat-warnings-count">0</span>)</span></p>
                 <p class="text-4xl font-bold" id="stat-warnings">0</p>
             </div>
             <div class="rounded-lg p-5 text-white bg-emerald-700 shadow-md">
-                <p class="text-sm font-medium opacity-90 mb-1">Информация</p>
+                <p class="text-sm font-medium opacity-90 mb-1">Информация <span class="text-xs opacity-75">(<span id="stat-information-count">0</span>)</span></p>
                 <p class="text-4xl font-bold" id="stat-information">0</p>
             </div>
         </section>
@@ -171,6 +171,53 @@
             </nav>
         </div>
 
+    </div>
+
+    <!-- Modal detail -->
+    <div id="detailOverlay" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-xl">
+                <h3 class="text-lg font-bold text-gray-800">Детали события <span id="detail-id" class="text-sm font-normal text-gray-500"></span></h3>
+                <button id="detailClose" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1">
+                <div class="grid grid-cols-2 gap-x-6 gap-y-4">
+                    <div>
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Время</p>
+                        <p id="detail-time" class="text-sm text-gray-800"></p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Компьютер</p>
+                        <p id="detail-computer" class="text-sm text-gray-800"></p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Тип события</p>
+                        <p id="detail-type" class="text-sm text-gray-800"></p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Уровень</p>
+                        <p id="detail-level" class="text-sm text-gray-800"></p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Источник</p>
+                        <p id="detail-source" class="text-sm text-gray-800"></p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Журнал</p>
+                        <p id="detail-logname" class="text-sm text-gray-800"></p>
+                    </div>
+                </div>
+                <div class="mt-5 pt-4 border-t border-gray-200">
+                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Полное сообщение</p>
+                    <p id="detail-message" class="text-sm text-gray-800 bg-gray-50 rounded-lg p-3 border border-gray-200 whitespace-pre-wrap break-words"></p>
+                </div>
+            </div>
+            <div class="px-6 py-3 border-t border-gray-200 flex justify-end bg-gray-50 rounded-b-xl">
+                <button id="detailCloseBtn" class="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Закрыть</button>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

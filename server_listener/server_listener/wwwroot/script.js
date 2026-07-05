@@ -19,6 +19,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const statErrors = $('stat-errors');
     const statWarnings = $('stat-warnings');
     const statInformation = $('stat-information');
+    const statErrorsCount = $('stat-errors-count');
+    const statWarningsCount = $('stat-warnings-count');
+    const statInformationCount = $('stat-information-count');
+
+    const detailOverlay = $('detailOverlay');
+    const detailClose = $('detailClose');
+    const detailCloseBtn = $('detailCloseBtn');
 
     let currentPage = 1;
     let pageSize = 10;
@@ -28,6 +35,16 @@ document.addEventListener('DOMContentLoaded', function () {
     fetchEventTypes();
     fetchSources();
     fetchLogs();
+
+    detailClose.addEventListener('click', closeDetail);
+    detailCloseBtn.addEventListener('click', closeDetail);
+    detailOverlay.addEventListener('click', (e) => {
+        if (e.target === detailOverlay) closeDetail();
+    });
+
+    function closeDetail() {
+        detailOverlay.classList.add('hidden');
+    }
 
     applyFilters.addEventListener('click', () => {
         currentPage = 1;
@@ -84,10 +101,17 @@ document.addEventListener('DOMContentLoaded', function () {
         fetch('/api/logs/stats')
             .then(r => r.ok ? r.json() : Promise.reject(r.status))
             .then(data => {
-                statTotal.textContent = data.total ?? 0;
-                statErrors.textContent = data.errors ?? 0;
-                statWarnings.textContent = data.warnings ?? 0;
-                statInformation.textContent = data.information ?? 0;
+                const total = data.total ?? 0;
+                const errors = data.errors ?? 0;
+                const warnings = data.warnings ?? 0;
+                const info = data.information ?? 0;
+                statTotal.textContent = total;
+                statErrors.textContent = errors;
+                statWarnings.textContent = warnings;
+                statInformation.textContent = info;
+                statErrorsCount.textContent = errors;
+                statWarningsCount.textContent = warnings;
+                statInformationCount.textContent = info;
             })
             .catch(() => {});
     }
@@ -163,7 +187,16 @@ document.addEventListener('DOMContentLoaded', function () {
             const time = new Date(log.timeCreated).toLocaleString('ru-RU');
             const msg = escapeHtml(log.message || '');
             return `
-                <tr class="${rowClass}">
+                <tr class="${rowClass} cursor-pointer detail-row" data-log='${escapeAttr(JSON.stringify({
+                    id: log.id,
+                    timeCreated: log.timeCreated,
+                    eventType: log.eventType,
+                    levelDisplayName: log.levelDisplayName,
+                    machineName: log.machineName,
+                    source: log.source,
+                    logName: log.logName,
+                    message: log.message
+                }))}'>
                     <td class="font-medium text-gray-700">${log.id}</td>
                     <td class="whitespace-nowrap text-gray-600">${time}</td>
                     <td><span class="badge-event ${eventBadge}">${log.eventType || 'N/A'}</span></td>
@@ -174,6 +207,31 @@ document.addEventListener('DOMContentLoaded', function () {
                     <td class="message-cell text-gray-700">${msg}</td>
                 </tr>`;
         }).join('');
+
+        logsBody.querySelectorAll('.detail-row').forEach(row => {
+            row.addEventListener('click', () => {
+                try {
+                    const log = JSON.parse(row.dataset.log);
+                    openDetail(log);
+                } catch(e) {}
+            });
+        });
+    }
+
+    function escapeAttr(str) {
+        return str.replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function openDetail(log) {
+        $('detail-id').textContent = '#' + log.id;
+        $('detail-time').textContent = new Date(log.timeCreated).toLocaleString('ru-RU');
+        $('detail-computer').textContent = log.machineName || '—';
+        $('detail-type').textContent = log.eventType || '—';
+        $('detail-level').textContent = log.levelDisplayName || '—';
+        $('detail-source').textContent = log.source || '—';
+        $('detail-logname').textContent = log.logName || '—';
+        $('detail-message').textContent = log.message || '—';
+        detailOverlay.classList.remove('hidden');
     }
 
     function getRowClass(log) {
