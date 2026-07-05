@@ -203,7 +203,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function renderPagination() {
-        paginationControls.innerHTML = '';
+        const paginationControlsElement = document.getElementById('pagination-controls');
+        if (!paginationControlsElement) {
+            addError('[ОШИБКА] Элемент пагинации "pagination-controls" не найден.');
+            return;
+        }
+        paginationControlsElement.innerHTML = '';
         if (totalPages <= 1) return;
 
         const createPageLink = (page, text, isDisabled = false, isActive = false) => {
@@ -219,17 +224,17 @@ document.addEventListener('DOMContentLoaded', function () {
         };
         
         const addPage = (page, text = page) => {
-            paginationControls.appendChild(createPageLink(page, text, false, page === currentPage));
+            paginationControlsElement.appendChild(createPageLink(page, text, false, page === currentPage));
         };
         
         const addEllipsis = () => {
             const li = document.createElement('li');
             li.className = 'page-item disabled';
             li.innerHTML = `<span class="page-link">...</span>`;
-            paginationControls.appendChild(li);
+            paginationControlsElement.appendChild(li);
         };
         
-        paginationControls.appendChild(createPageLink(currentPage - 1, 'Назад', currentPage === 1));
+        paginationControlsElement.appendChild(createPageLink(currentPage - 1, 'Назад', currentPage === 1));
 
         if (totalPages <= 7) {
             for (let i = 1; i <= totalPages; i++) addPage(i);
@@ -243,7 +248,7 @@ document.addEventListener('DOMContentLoaded', function () {
             addPage(totalPages);
         }
 
-        paginationControls.appendChild(createPageLink(currentPage + 1, 'Вперед', currentPage === totalPages));
+        paginationControlsElement.appendChild(createPageLink(currentPage + 1, 'Вперед', currentPage === totalPages));
     }
 
     function getLevelBadge(level) {
