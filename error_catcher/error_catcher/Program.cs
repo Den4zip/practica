@@ -10,6 +10,8 @@ public static class Program
 {
     public static void Main(string[] args)
     {
+        // Устанавливаем рабочую директорию в папку, где физически лежит исполняемый файл
+        Directory.SetCurrentDirectory(AppContext.BaseDirectory);
         CreateHostBuilder(args).Build().Run();
     }
 
@@ -25,7 +27,7 @@ public static class Program
             .UseContentRoot(pathToContentRoot)
             .UseWindowsService(options =>
             {
-                options.ServiceName = "Windows Error Catcher Service";
+                options.ServiceName = "ErrorCatcher";
             })
             .ConfigureServices((context, services) =>
             {

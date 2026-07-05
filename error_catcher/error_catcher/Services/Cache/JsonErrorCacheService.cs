@@ -27,7 +27,8 @@ public class JsonErrorCacheService : BackgroundService, IErrorCacheService
         _logger = logger;
         _httpClientFactory = httpClientFactory;
 
-        _cacheFilePath = configuration.GetValue<string>("ErrorCaching:CacheFilePath") ?? "error_cache.json";
+        _cacheFilePath = Path.Combine(AppContext.BaseDirectory, 
+                              configuration.GetValue<string>("ErrorCaching:CacheFilePath") ?? "error_cache.json");
         var retryMinutes = configuration.GetValue<int?>("ErrorCaching:RetryIntervalMinutes") ?? 1;
         _retryInterval = TimeSpan.FromMinutes(retryMinutes);
         _serverUrl = configuration.GetValue<string>("ServerUrl") 
@@ -93,7 +94,7 @@ public class JsonErrorCacheService : BackgroundService, IErrorCacheService
                 }
                 else
                 {
-                    _logger.LogWarning("Failed to send cached command. Status: {StatusCode}. Re-queuing.", response.StatusCode);
+                    _logger.LogWarning("Failed to send cached command to {ServerUrl}. Status: {StatusCode}. Re-queuing. Will retry in {RetryInterval} minutes.", _serverUrl, response.StatusCode, _retryInterval.TotalMinutes);
                     CommandQueue.Enqueue(sqlCommand); // Add it back to the end of the queue
                     await SaveCacheToDisk();
                     return; // Stop processing for now, wait for the next interval
@@ -101,7 +102,7 @@ public class JsonErrorCacheService : BackgroundService, IErrorCacheService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sending cached command. Re-queuing.");
+                _logger.LogError(ex, "Error sending cached command to {ServerUrl}. Re-queuing. Will retry in {RetryInterval} minutes.", _serverUrl, _retryInterval.TotalMinutes);
                 CommandQueue.Enqueue(sqlCommand); // Add it back on failure
                 await SaveCacheToDisk();
                 return; // Stop processing, wait for the next interval
@@ -114,18 +115,51 @@ public class JsonErrorCacheService : BackgroundService, IErrorCacheService
         await FileLock.WaitAsync();
         try
         {
-            if (!File.Exists(_cacheFilePath)) return;
-
-            var json = await File.ReadAllTextAsync(_cacheFilePath);
-            var commands = JsonSerializer.Deserialize<List<string>>(json);
-            if (commands != null)
+            if (!File.Exists(_cacheFilePath))
             {
-                foreach (var command in commands)
+                return;
+            }
+
+            string json;
+            try
+            {
+                json = await File.ReadAllTextAsync(_cacheFilePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to read cache file '{CacheFilePath}'.", _cacheFilePath);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return;
+            }
+
+            try
+            {
+                var commands = JsonSerializer.Deserialize<List<string>>(json);
+                if (commands != null)
                 {
-                    CommandQueue.Enqueue(command);
+                    foreach (var command in commands)
+                    {
+                        CommandQueue.Enqueue(command);
+                    }
+                    _logger.LogInformation("Loaded {Count} commands from cache.", commands.Count);
                 }
             }
-            _logger.LogInformation("Loaded {Count} commands from cache.", CommandQueue.Count);
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Cache file '{CacheFilePath}' is corrupted. The application will rename the file to '{CacheFilePath}.corrupted' and continue with an empty cache.", _cacheFilePath, _cacheFilePath);
+                try
+                {
+                    File.Move(_cacheFilePath, _cacheFilePath + ".corrupted");
+                }
+                catch (Exception moveEx)
+                {
+                    _logger.LogError(moveEx, "Failed to rename corrupted cache file.");
+                }
+            }
         }
         finally
         {

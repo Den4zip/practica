@@ -1,83 +1,93 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Элементы управления
+    // --- DOM Элементы ---
     const eventTypeFilter = document.getElementById('eventTypeFilter');
-    const logNameFilter = document.getElementById('logNameFilter');
     const sourceFilter = document.getElementById('sourceFilter');
+    const logNameFilter = document.getElementById('logNameFilter');
     const searchFilter = document.getElementById('searchFilter');
     const sortOrder = document.getElementById('sortOrder');
-    const applyFilters = document.getElementById('applyFilters');
-    const autoUpdate = document.getElementById('autoUpdate');
+    const itemsPerPageSelect = document.getElementById('itemsPerPage');
     
-    // Переменные состояния
+    const applyFiltersBtn = document.getElementById('applyFilters');
+    const resetFiltersBtn = document.getElementById('resetFilters');
+    const exportCSVBtn = document.getElementById('exportCSV');
+    const autoUpdateCheck = document.getElementById('autoUpdate');
+    const clearErrorsBtn = document.getElementById('clearErrors');
+
+    const logsTableBody = document.getElementById('logs-table-body');
+    const paginationControls = document.getElementById('pagination-controls');
+    const errorContainer = document.getElementById('error-container');
+
+    const statusIndicator = document.getElementById('status-indicator');
+    const statusText = document.getElementById('status-text');
+
+    // --- Переменные состояния ---
     let currentPage = 1;
-    const pageSize = 30;
-    let autoUpdateInterval;
+    let autoUpdateInterval = null;
+    let currentPageData = []; // Данные для текущей страницы
 
     // --- Инициализация ---
-    fetchEventTypes();
-    fetchSources();
-    fetchLogs();
-
-    // --- Обработчики событий ---
-
-    applyFilters.addEventListener('click', () => {
-        currentPage = 1;
+    function initialize() {
+        addError('[ИНФО] Инициализация панели управления...');
+        // Загрузка динамических опций для фильтров
+        fetchDynamicOptions('/api/logs/eventtypes', eventTypeFilter, 'типы событий');
+        fetchDynamicOptions('/api/logs/sources', sourceFilter, 'источники');
+        fetchDynamicOptions('/api/logs/lognames', logNameFilter, 'имена журналов'); // Предполагаемый эндпоинт
+        
+        // Первоначальная загрузка логов
         fetchLogs();
-    });
+        
+        // Навешиваем обработчики
+        setupEventListeners();
+        addError('[ИНФО] Панель управления готова к работе.');
+    }
+
+    // --- Установка обработчиков событий ---
+    function setupEventListeners() {
+        applyFiltersBtn.addEventListener('click', () => fetchLogs(true));
+        searchFilter.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') fetchLogs(true);
+        });
+
+        resetFiltersBtn.addEventListener('click', () => {
+            document.querySelectorAll('#eventTypeFilter, #sourceFilter, #logNameFilter').forEach(el => el.value = '');
+            searchFilter.value = '';
+            sortOrder.value = 'desc';
+            fetchLogs(true);
+            addError('[ИНФО] Фильтры сброшены.');
+        });
+        
+        itemsPerPageSelect.addEventListener('change', () => fetchLogs(true));
+
+        autoUpdateCheck.addEventListener('change', function() {
+            if (this.checked) {
+                addError('[ИНФО] Автообновление включено (15 сек).');
+                autoUpdateInterval = setInterval(() => fetchLogs(false, true), 15000); // don't reset page, suppress errors for background refresh
+            } else {
+                clearInterval(autoUpdateInterval);
+                autoUpdateInterval = null;
+                addError('[ИНФО] Автообновление отключено.');
+            }
+        });
+
+        exportCSVBtn.addEventListener('click', exportToCSV);
+        clearErrorsBtn.addEventListener('click', clearErrorLog);
+
+        logsTableBody.addEventListener('click', handleTableRowClick);
+    }
     
-    searchFilter.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-            currentPage = 1;
-            fetchLogs();
-        }
-    });
-
-    autoUpdate.addEventListener('change', function() {
-        if (this.checked) {
-            autoUpdateInterval = setInterval(fetchLogs, 15000); // 15 секунд
-        } else {
-            clearInterval(autoUpdateInterval);
-        }
-    });
-
     // --- Функции для загрузки данных ---
 
-    function fetchDynamicOptions(url, filterElement) {
-        fetch(url)
-            .then(response => response.json())
-            .then(options => {
-                // Сохраняем текущее значение, если оно есть
-                const currentValue = filterElement.value;
-                // Очищаем все, кроме первого элемента ("Все")
-                while (filterElement.options.length > 1) {
-                    filterElement.remove(1);
-                }
-                options.forEach(optionText => {
-                    const option = document.createElement('option');
-                    option.value = optionText;
-                    option.textContent = optionText;
-                    filterElement.appendChild(option);
-                });
-                // Восстанавливаем значение
-                filterElement.value = currentValue;
-            })
-            .catch(error => console.error(`Ошибка при загрузке для ${filterElement.id}:`, error));
-    }
-
-    function fetchEventTypes() {
-        fetchDynamicOptions('/api/logs/eventtypes', eventTypeFilter);
-    }
-    
-    function fetchSources() {
-        fetchDynamicOptions('/api/logs/sources', sourceFilter);
-    }
-
-    function fetchLogs() {
+    async function fetchLogs(resetPage = false, isBackground = false) {
+        if (resetPage) {
+            currentPage = 1;
+        }
+        
         const eventType = eventTypeFilter.value;
         const logName = logNameFilter.value;
         const source = sourceFilter.value;
         const search = searchFilter.value;
         const sort = sortOrder.value;
+        const pageSize = itemsPerPageSelect.value;
         
         let url = new URL('/api/logs', window.location.origin);
         url.searchParams.append('page', currentPage);
@@ -88,83 +98,268 @@ document.addEventListener('DOMContentLoaded', function() {
         if (source) url.searchParams.append('source', source);
         if (search) url.searchParams.append('search', search);
 
-        fetch(url)
-            .then(response => {
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                return response.json();
-            })
-            .then(data => {
-                renderTable(data.logs);
-                renderPagination(data.totalPages);
-                // Перезагружаем фильтры, чтобы показать только релевантные опции
-                fetchEventTypes();
-                fetchSources();
-            })
-            .catch(error => console.error('Ошибка при загрузке логов:', error));
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                 throw new Error(`Ошибка сети: ${response.status} ${response.statusText}`);
+            }
+            const data = await response.json();
+
+            if (data.error && !isBackground) {
+                throw new Error(`Ошибка API: ${data.error}`);
+            }
+            
+            currentPageData = data.logs || [];
+            renderTable(currentPageData);
+            renderPagination(data.totalPages);
+            updateStats(data.stats);
+
+            // Обновляем фильтры, чтобы показывать только релевантные опции
+            // Это может быть полезно, если набор источников/типов меняется в зависимости от других фильтров
+            fetchDynamicOptions('/api/logs/eventtypes', eventTypeFilter, 'типы событий', true);
+            fetchDynamicOptions('/api/logs/sources', sourceFilter, 'источники', true);
+            fetchDynamicOptions('/api/logs/lognames', logNameFilter, 'имена журналов', true);
+            
+            setOnlineStatus(true);
+            if (!isBackground) {
+                 addError(`[ИНФО] Загружено ${currentPageData.length} записей (Страница ${currentPage} из ${data.totalPages}).`);
+            }
+
+        } catch (error) {
+            if (!isBackground) {
+                addError(`[ОШИБКА] Не удалось загрузить логи: ${error.message}`);
+                setOnlineStatus(false);
+            }
+        }
+    }
+
+    async function fetchDynamicOptions(url, filterElement, name, preserveValue = false) {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Ошибка сети');
+            
+            const options = await response.json();
+            
+            const currentValue = preserveValue ? filterElement.value : '';
+            
+            filterElement.innerHTML = '<option value="">Все</option>'; // Очищаем старые опции
+
+            options.forEach(optionText => {
+                const option = document.createElement('option');
+                option.value = optionText;
+                option.textContent = optionText;
+                filterElement.appendChild(option);
+            });
+
+            if (preserveValue) {
+                filterElement.value = currentValue;
+            }
+        } catch (error) {
+            addError(`[ОШИБКА] Не удалось загрузить ${name}: ${error.message}`);
+        }
     }
 
     // --- Функции для отрисовки ---
 
-    function getRowClass(log) {
-        const eventType = log.eventType?.toLowerCase();
-        if (eventType === 'security') return 'table-row-security';
-        if (eventType === 'metric') return 'table-row-metric';
-        if (eventType === 'service') return 'table-row-warning'; // Service alerts are warnings
-
-        const level = log.levelDisplayName?.toLowerCase();
-        if (level?.includes('error') || level?.includes('critical')) return 'table-row-error';
-        if (level?.includes('warning')) return 'table-row-warning';
-        
-        return 'table-row-info';
-    }
-
     function renderTable(logs) {
-        const tbody = document.getElementById('logs-table-body');
-        tbody.innerHTML = '';
+        logsTableBody.innerHTML = '';
 
         if (!logs || logs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center">Записи не найдены</td></tr>';
+            logsTableBody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Записи не найдены</td></tr>';
             return;
         }
 
         logs.forEach(log => {
-            const tr = document.createElement('tr');
-            tr.className = getRowClass(log);
+            const row = document.createElement('tr');
+            row.dataset.id = log.id; // Убедитесь, что свойство ID в нижнем регистре
+            
+            const message = log.message ? (log.message.length > 50 ? log.message.substring(0, 50) + '...' : log.message) : 'Пустое сообщение';
 
-            tr.innerHTML = `
+            row.innerHTML = `
                 <td>${log.id}</td>
-                <td>${new Date(log.timeCreated).toLocaleString()}</td>
-                <td><span class="badge ${getEventTypeBadge(log.eventType)}">${log.eventType || 'N/A'}</span></td>
-                <td><span class="badge ${getLevelBadge(log.levelDisplayName)}">${log.levelDisplayName || 'N/A'}</span></td>
-                <td>${log.machineName}</td>
+                <td>${new Date(log.timeCreated).toLocaleString('ru-RU')}</td>
+                <td>${log.eventType || 'N/A'}</td>
+                <td>${getLevelBadge(log.levelDisplayName)}</td>
+                <td style="text-align: center;">${log.machineName || 'N/A'}</td>
                 <td>${log.source || 'N/A'}</td>
                 <td>${log.logName || 'N/A'}</td>
-                <td class="message-cell">${escapeHtml(log.message)}</td>
+                <td>${escapeHtml(message)}</td>
             `;
-            tbody.appendChild(tr);
+            logsTableBody.appendChild(row);
+        });
+    }
+    
+    function getLevelBadge(level) {
+        if (!level) return `<span class="badge bg-secondary">N/A</span>`;
+        const l = level.toLowerCase();
+        if (l.includes('ошибка') || l.includes('error') || l === 'error') return `<span class="badge bg-danger">${level}</span>`;
+        if (l.includes('предупреждение') || l.includes('warning') || l === 'warning') return `<span class="badge bg-warning text-dark">${level}</span>`;
+        if (l.includes('инфо') || l.includes('info') || l === 'info') return `<span class="badge bg-success text-white">${level}</span>`;
+        return `<span class="badge bg-secondary">${level}</span>`;
+    }
+
+    function renderPagination(totalPages) {
+        paginationControls.innerHTML = '';
+        if (totalPages <= 1) return;
+
+        const createPageLink = (page, text, isDisabled = false, isActive = false) => {
+            const li = document.createElement('li');
+            li.className = `page-item ${isDisabled ? 'disabled' : ''} ${isActive ? 'active' : ''}`;
+            li.innerHTML = `<a class="page-link" href="#" data-page="${page}">${text}</a>`;
+            return li;
+        };
+        
+        // Кнопка "Назад"
+        paginationControls.appendChild(createPageLink(currentPage - 1, 'Назад', currentPage === 1));
+
+        // Логика отображения страниц
+        let startPage = Math.max(1, currentPage - 2);
+        let endPage = Math.min(totalPages, currentPage + 2);
+        
+        if (currentPage > 3) {
+            paginationControls.appendChild(createPageLink(1, '1'));
+            if (currentPage > 4) paginationControls.appendChild(createPageLink(0, '...', true));
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            paginationControls.appendChild(createPageLink(i, i, false, i === currentPage));
+        }
+
+        if (currentPage < totalPages - 2) {
+             if (currentPage < totalPages - 3) paginationControls.appendChild(createPageLink(0, '...', true));
+            paginationControls.appendChild(createPageLink(totalPages, totalPages));
+        }
+
+        // Кнопка "Вперед"
+        paginationControls.appendChild(createPageLink(currentPage + 1, 'Вперед', currentPage === totalPages));
+        
+        // Добавляем обработчики на ссылки пагинации
+        paginationControls.querySelectorAll('.page-link').forEach(link => {
+            if (link.parentElement.classList.contains('disabled')) return;
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const page = parseInt(e.target.dataset.page, 10);
+                if (page) {
+                    currentPage = page;
+                    fetchLogs();
+                }
+            });
         });
     }
 
-    function getLevelBadge(level) {
-        if (!level) return 'bg-secondary';
-        const l = level.toLowerCase();
-        if (l.includes('error') || l.includes('critical')) return 'bg-danger';
-        if (l.includes('warning')) return 'bg-warning text-dark';
-        if (l.includes('information')) return 'bg-info text-dark';
-        return 'bg-secondary';
+    function updateStats(stats) {
+        if (!stats) {
+            console.warn('Объект статистики не получен от API.');
+            stats = { total: 0, errors: 0, warnings: 0, infos: 0 }; // default
+        }
+        document.getElementById('stat-total').innerText = stats.total ?? 0;
+        document.getElementById('stat-errors').innerText = stats.errors ?? 0;
+        document.getElementById('stat-warnings').innerText = stats.warnings ?? 0;
+        document.getElementById('stat-infos').innerText = stats.infos ?? 0;
     }
 
-    function getEventTypeBadge(eventType) {
-        if (!eventType) return 'bg-light text-dark';
-        const et = eventType.toLowerCase();
-        if (et === 'security') return 'bg-primary';
-        if (et === 'metric') return 'bg-success';
-        if (et === 'service') return 'bg-warning text-dark';
-        if (et === 'windowserror') return 'bg-secondary';
-        return 'bg-light text-dark';
+    // --- Вспомогательные функции ---
+
+    async function exportToCSV() {
+        addError('[ИНФО] Подготовка данных для экспорта...');
+        
+        const eventType = eventTypeFilter.value;
+        const logName = logNameFilter.value;
+        const source = sourceFilter.value;
+        const search = searchFilter.value;
+        const sort = sortOrder.value;
+        
+        let url = new URL('/api/logs', window.location.origin);
+        url.searchParams.append('page', 1);
+        url.searchParams.append('pageSize', -1); // Сигнал для API, чтобы вернуть все записи
+        url.searchParams.append('sortOrder', sort);
+        if (eventType) url.searchParams.append('eventType', eventType);
+        if (logName) url.searchParams.append('logName', logName);
+        if (source) url.searchParams.append('source', source);
+        if (search) url.searchParams.append('search', search);
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Сетевая ошибка при экспорте');
+            const data = await response.json();
+            const logsToExport = data.logs;
+
+            if (!logsToExport || logsToExport.length === 0) {
+                return addError('[ВНИМАНИЕ] Нет данных для экспорта, соответствующих текущим фильтрам!');
+            }
+
+            const headers = ['ID', 'Время', 'Тип события', 'Уровень', 'Компьютер', 'Источник', 'Журнал', 'Сообщение'];
+            const rows = logsToExport.map(row => [
+                row.id, `"${new Date(row.timeCreated).toLocaleString('ru-RU')}"`, row.eventType, row.levelDisplayName, row.machineName, row.source, row.logName, `"${(row.message || '').replace(/"/g, '""')}"`
+            ].join(','));
+            
+            const csvContent = [headers.join(','), ...rows].join('
+');
+            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `логи_${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            addError('[ИНФО] Экспорт в CSV успешно завершен.');
+
+        } catch (error) {
+             addError(`[ОШИБКА] Экспорт не удался: ${error.message}`);
+        }
+    }
+
+    function addError(message) {
+        errorContainer.classList.add('has-errors');
+        const time = new Date().toLocaleTimeString('ru-RU');
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-line';
+        errorDiv.innerHTML = `<span class="error-time">[${time}]</span> ${escapeHtml(message)}`;
+        errorContainer.appendChild(errorDiv);
+        errorContainer.scrollTop = errorContainer.scrollHeight;
+    }
+
+    function clearErrorLog() {
+        errorContainer.innerHTML = `<div class="empty-state">Нет ошибок</div>`;
+        errorContainer.classList.remove('has-errors');
+    }
+
+    function handleTableRowClick(e) {
+        const row = e.target.closest('tr');
+        if (!row || !row.dataset.id) return;
+        
+        const item = currentPageData.find(d => d.id == row.dataset.id);
+        if(!item) {
+            addError(`[ВНИМАНИЕ] Не удалось найти данные для ID ${row.dataset.id}`);
+            return;
+        }
+        
+        document.getElementById('modal-id').innerText = `ID: ${item.id}`;
+        document.getElementById('modal-time').innerText = new Date(item.timeCreated).toLocaleString('ru-RU');
+        document.getElementById('modal-computer').innerText = item.machineName;
+        document.getElementById('modal-type').innerText = item.eventType;
+        document.getElementById('modal-level').innerHTML = getLevelBadge(item.levelDisplayName);
+        document.getElementById('modal-source').innerText = item.source;
+        document.getElementById('modal-logname').innerText = item.logName;
+        document.getElementById('modal-message').innerText = item.message;
+        
+        new bootstrap.Modal(document.getElementById('detailModal')).show();
+    }
+    
+    function setOnlineStatus(isOnline) {
+        if (isOnline) {
+            statusIndicator.classList.remove('offline');
+            statusText.innerText = 'Онлайн';
+            statusText.className = 'ms-1 fw-bold text-success';
+        } else {
+            statusIndicator.classList.add('offline');
+            statusText.innerText = 'Офлайн';
+            statusText.className = 'ms-1 fw-bold text-danger';
+        }
     }
 
     function escapeHtml(unsafe) {
+        if (typeof unsafe !== 'string') return '';
         return unsafe
              .replace(/&/g, "&amp;")
              .replace(/</g, "&lt;")
@@ -172,49 +367,7 @@ document.addEventListener('DOMContentLoaded', function() {
              .replace(/"/g, "&quot;")
              .replace(/'/g, "&#039;");
     }
-    
-    function renderPagination(totalPages) {
-        const paginationControls = document.getElementById('pagination-controls');
-        paginationControls.innerHTML = '';
 
-        let startPage = Math.max(1, currentPage - 2);
-        let endPage = Math.min(totalPages, currentPage + 2);
-
-        if (currentPage > 3) {
-            addPageLink(1, '1');
-            if(currentPage > 4) paginationControls.appendChild(createEllipsis());
-        }
-
-        for (let i = startPage; i <= endPage; i++) {
-            addPageLink(i, i);
-        }
-
-        if (currentPage < totalPages - 2) {
-             if(currentPage < totalPages - 3) paginationControls.appendChild(createEllipsis());
-            addPageLink(totalPages, totalPages);
-        }
-    }
-    
-    function addPageLink(pageNumber, text) {
-        const li = document.createElement('li');
-        li.className = `page-item ${pageNumber === currentPage ? 'active' : ''}`;
-        const a = document.createElement('a');
-        a.className = 'page-link';
-        a.href = '#';
-        a.innerText = text;
-        a.addEventListener('click', (e) => {
-            e.preventDefault();
-            currentPage = pageNumber;
-            fetchLogs();
-        });
-        li.appendChild(a);
-        paginationControls.appendChild(li);
-    }
-    
-    function createEllipsis() {
-        const li = document.createElement('li');
-        li.className = 'page-item disabled';
-        li.innerHTML = `<span class="page-link">…</span>`;
-        return li;
-    }
+    // --- Запуск ---
+    initialize();
 });
