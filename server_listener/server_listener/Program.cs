@@ -184,13 +184,13 @@ app.MapGet("/api/logs/stats", async (MySqlConnection dbConnection) => {
     var totalCmd = new MySqlCommand("SELECT COUNT(*) FROM SystemLogs", dbConnection);
     var totalCount = Convert.ToInt32(await totalCmd.ExecuteScalarAsync());
 
-    var errorsCmd = new MySqlCommand("SELECT COUNT(*) FROM SystemLogs WHERE LevelDisplayName LIKE '%Error%' OR LevelDisplayName LIKE '%Critical%'", dbConnection);
+    var errorsCmd = new MySqlCommand("SELECT COUNT(*) FROM SystemLogs WHERE LevelDisplayName LIKE '%Error%' OR LevelDisplayName LIKE '%Critical%' OR LevelDisplayName LIKE '%Ошибка%' OR LevelDisplayName LIKE '%Критическ%'", dbConnection);
     var errorsCount = Convert.ToInt32(await errorsCmd.ExecuteScalarAsync());
 
-    var warningsCmd = new MySqlCommand("SELECT COUNT(*) FROM SystemLogs WHERE LevelDisplayName LIKE '%Warning%'", dbConnection);
+    var warningsCmd = new MySqlCommand("SELECT COUNT(*) FROM SystemLogs WHERE LevelDisplayName LIKE '%Warning%' OR LevelDisplayName LIKE '%Предупреждени%'", dbConnection);
     var warningsCount = Convert.ToInt32(await warningsCmd.ExecuteScalarAsync());
 
-    var infoCmd = new MySqlCommand("SELECT COUNT(*) FROM SystemLogs WHERE LevelDisplayName LIKE '%Information%' OR (LevelDisplayName IS NULL AND EventType NOT IN ('WindowsError','Service'))", dbConnection);
+    var infoCmd = new MySqlCommand("SELECT COUNT(*) FROM SystemLogs WHERE LevelDisplayName LIKE '%Information%' OR LevelDisplayName LIKE '%Информац%' OR (LevelDisplayName IS NULL AND EventType NOT IN ('WindowsError','Service'))", dbConnection);
     var infoCount = Convert.ToInt32(await infoCmd.ExecuteScalarAsync());
 
     return Results.Ok(new {
