@@ -118,8 +118,9 @@
                         <h3 class="mb-0" id="stat-warnings">0</h3>
                     </div>
                 </div>
+                <!-- Изменяем класс с bg-info на bg-success для зеленого цвета -->
                 <div class="col-md-3 col-6">
-                    <div class="card bg-info text-white p-3 shadow-sm">
+                    <div class="card bg-success text-white p-3 shadow-sm">
                         <small>Информация</small>
                         <h3 class="mb-0" id="stat-infos">0</h3>
                     </div>
@@ -312,11 +313,11 @@
 
         // --- 2. ФУНКЦИИ ОТРИСОВКИ И ФИЛЬТРАЦИИ ---
 
-        // Генерация бейджика для уровня
+        // Генерация бейджика для уровня (цвет Инфо изменен на зеленый bg-success)
         function getLevelBadge(level) {
             if (level === 'Ошибка') return `<span class="badge bg-danger">${level}</span>`;
             if (level === 'Предупреждение') return `<span class="badge bg-warning text-dark">${level}</span>`;
-            if (level === 'Инфо') return `<span class="badge bg-info text-white">${level}</span>`;
+            if (level === 'Инфо') return `<span class="badge bg-success text-white">${level}</span>`;
             return `<span class="badge bg-secondary">${level}</span>`;
         }
 
