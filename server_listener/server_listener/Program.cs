@@ -177,6 +177,31 @@ app.MapGet("/api/logs", async (MySqlConnection dbConnection, int page = 1, int p
 })
 .RequireHost("*:80");
 
+// Эндпоинт для получения статистики (общее кол-во, ошибки, предупреждения, информация)
+app.MapGet("/api/logs/stats", async (MySqlConnection dbConnection) => {
+    await dbConnection.OpenAsync();
+
+    var totalCmd = new MySqlCommand("SELECT COUNT(*) FROM SystemLogs", dbConnection);
+    var totalCount = Convert.ToInt32(await totalCmd.ExecuteScalarAsync());
+
+    var errorsCmd = new MySqlCommand("SELECT COUNT(*) FROM SystemLogs WHERE LevelDisplayName LIKE '%Error%' OR LevelDisplayName LIKE '%Critical%'", dbConnection);
+    var errorsCount = Convert.ToInt32(await errorsCmd.ExecuteScalarAsync());
+
+    var warningsCmd = new MySqlCommand("SELECT COUNT(*) FROM SystemLogs WHERE LevelDisplayName LIKE '%Warning%'", dbConnection);
+    var warningsCount = Convert.ToInt32(await warningsCmd.ExecuteScalarAsync());
+
+    var infoCmd = new MySqlCommand("SELECT COUNT(*) FROM SystemLogs WHERE LevelDisplayName LIKE '%Information%' OR (LevelDisplayName IS NULL AND EventType NOT IN ('WindowsError','Service'))", dbConnection);
+    var infoCount = Convert.ToInt32(await infoCmd.ExecuteScalarAsync());
+
+    return Results.Ok(new {
+        total = totalCount,
+        errors = errorsCount,
+        warnings = warningsCount,
+        information = infoCount
+    });
+})
+.RequireHost("*:80");
+
 // Эндпоинт для получения уникальных источников логов
 app.MapGet("/api/logs/sources", async (MySqlConnection dbConnection) => {
     await dbConnection.OpenAsync();
