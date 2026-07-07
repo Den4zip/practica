@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const eventTypeFilter = $('eventTypeFilter');
     const sourceFilter = $('sourceFilter');
     const logNameFilter = $('logNameFilter');
+    const levelFilter = $('levelFilter');
     const searchFilter = $('searchFilter');
     const sortOrder = $('sortOrder');
     const applyFilters = $('applyFilters');
@@ -11,9 +12,16 @@ document.addEventListener('DOMContentLoaded', function () {
     const autoUpdate = $('autoUpdate');
     const exportCsvBtn = $('exportCsvBtn');
     const clearBtn = $('clearBtn');
+    const logoutBtn = $('logoutBtn');
     const logsBody = $('logs-table-body');
     const paginationControls = $('pagination-controls');
     const pageSizeSelect = $('pageSizeSelect');
+    const loginOverlay = $('loginOverlay');
+    const loginForm = $('loginForm');
+    const loginError = $('loginError');
+    const loginUsername = $('loginUsername');
+    const loginPassword = $('loginPassword');
+    const dashboardContent = $('dashboardContent');
 
     const statTotal = $('stat-total');
     const statErrors = $('stat-errors');
@@ -31,10 +39,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let pageSize = 10;
     let autoUpdateInterval = null;
 
-    fetchStats();
-    fetchEventTypes();
-    fetchSources();
-    fetchLogs();
+    checkAuth();
 
     detailClose.addEventListener('click', closeDetail);
     detailCloseBtn.addEventListener('click', closeDetail);
@@ -85,7 +90,7 @@ document.addEventListener('DOMContentLoaded', function () {
         logsBody.innerHTML = `
             <tr>
                 <td colspan="8" class="px-3 py-16 text-center">
-                    <p class="text-gray-400 text-sm">Нет ошибок</p>
+                    <p class="text-gray-400 text-sm">Нет записей</p>
                 </td>
             </tr>`;
         statTotal.textContent = '0';
@@ -96,6 +101,76 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     exportCsvBtn.addEventListener('click', exportToCsv);
+
+    logoutBtn.addEventListener('click', logout);
+
+    loginForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        loginError.classList.add('hidden');
+        const username = loginUsername.value.trim();
+        const password = loginPassword.value;
+        if (!username || !password) return;
+        fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ login: username, password: password })
+        })
+            .then(r => {
+                if (r.ok) return r.json();
+                if (r.status === 401) throw new Error('Неверный логин или пароль');
+                throw new Error('Ошибка сервера');
+            })
+            .then(() => {
+                loginOverlay.classList.add('hidden');
+                loginPassword.value = '';
+                initDashboard();
+            })
+            .catch(err => {
+                loginError.textContent = err.message;
+                loginError.classList.remove('hidden');
+            });
+    });
+
+    function initDashboard() {
+        fetchStats();
+        fetchEventTypes();
+        fetchSources();
+        fetchLogs();
+    }
+
+    function checkAuth() {
+        fetch('/api/auth/status')
+            .then(r => {
+                if (r.ok) {
+                    loginOverlay.classList.add('hidden');
+                    dashboardContent.classList.remove('hidden');
+                    initDashboard();
+                } else {
+                    dashboardContent.classList.add('hidden');
+                    loginOverlay.classList.remove('hidden');
+                }
+            })
+            .catch(() => {
+                dashboardContent.classList.add('hidden');
+                loginOverlay.classList.remove('hidden');
+            });
+    }
+
+    function logout() {
+        fetch('/api/auth/logout', { method: 'POST' })
+            .then(() => {
+                dashboardContent.classList.add('hidden');
+                loginOverlay.classList.remove('hidden');
+                loginUsername.value = '';
+                loginPassword.value = '';
+                if (autoUpdateInterval) {
+                    clearInterval(autoUpdateInterval);
+                    autoUpdateInterval = null;
+                    autoUpdate.checked = false;
+                }
+            })
+            .catch(() => {});
+    }
 
     function fetchStats() {
         fetch('/api/logs/stats')
@@ -148,6 +223,7 @@ document.addEventListener('DOMContentLoaded', function () {
         params.set('sortOrder', sortOrder.value);
         if (eventTypeFilter.value) params.set('eventType', eventTypeFilter.value);
         if (logNameFilter.value) params.set('logName', logNameFilter.value);
+        if (levelFilter.value) params.set('level', levelFilter.value);
         if (sourceFilter.value) params.set('source', sourceFilter.value);
         if (searchFilter.value) params.set('search', searchFilter.value);
 
@@ -331,6 +407,7 @@ document.addEventListener('DOMContentLoaded', function () {
         params.set('sortOrder', sortOrder.value);
         if (eventTypeFilter.value) params.set('eventType', eventTypeFilter.value);
         if (logNameFilter.value) params.set('logName', logNameFilter.value);
+        if (levelFilter.value) params.set('level', levelFilter.value);
         if (sourceFilter.value) params.set('source', sourceFilter.value);
         if (searchFilter.value) params.set('search', searchFilter.value);
 

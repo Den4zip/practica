@@ -1,4 +1,5 @@
 using MySqlConnector;
+using System.Collections.Concurrent;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
@@ -27,6 +28,9 @@ builder.Services.AddTransient<MySqlConnection>(_ =>
 
 var app = builder.Build();
 
+// --- Auth session store ---
+var authSessions = new ConcurrentDictionary<string, DateTime>();
+
 // --- 2. Настройка конвейера обработки запросов (Middleware) ---
 
 app.UseRateLimiter();
@@ -48,6 +52,22 @@ app.Use(async (context, next) =>
             context.Response.StatusCode = 401;
             await context.Response.WriteAsync("Unauthorized client.");
             return;
+        }
+    }
+
+    // Dashboard auth check (порт 80, кроме эндпоинтов аутентификации)
+    if (context.Request.Host.Port != 8080 &&
+        !context.Request.Path.StartsWithSegments("/api/auth"))
+    {
+        if (!context.Request.Cookies.TryGetValue("beacon_session", out var token) ||
+            !authSessions.TryGetValue(token, out var expires) ||
+            expires < DateTime.UtcNow)
+        {
+            if (context.Request.Path.StartsWithSegments("/api/"))
+            {
+                context.Response.StatusCode = 401;
+                return;
+            }
         }
     }
 
@@ -104,7 +124,8 @@ app.MapPost("/query", async (HttpContext context, MySqlConnection dbConnection) 
 app.MapGet("/api/logs", async (MySqlConnection dbConnection, int page = 1, int pageSize = 30, 
                                  string? eventType = null, string? logName = null, 
                                  string? machineName = null, string? source = null, 
-                                 string? search = null, string sortOrder = "desc") => 
+                                 string? search = null, string sortOrder = "desc",
+                                 string? level = null) => 
 {
     var whereClauses = new List<string>();
     var parameters = new Dictionary<string, object>();
@@ -133,6 +154,11 @@ app.MapGet("/api/logs", async (MySqlConnection dbConnection, int page = 1, int p
     {
         whereClauses.Add("Message LIKE @Search");
         parameters["@Search"] = $"%{search}%";
+    }
+    if (!string.IsNullOrEmpty(level))
+    {
+        whereClauses.Add("LevelDisplayName LIKE @Level");
+        parameters["@Level"] = $"%{level}%";
     }
     
     var whereSql = whereClauses.Any() ? "WHERE " + string.Join(" AND ", whereClauses) : "";
@@ -234,4 +260,57 @@ app.MapGet("/api/logs/eventtypes", async (MySqlConnection dbConnection) => {
 })
 .RequireHost("*:80");
 
+// --- Auth endpoints ---
+
+app.MapPost("/api/auth/login", (LoginRequest req, HttpContext context) =>
+{
+    var sec = app.Configuration.GetSection("Security");
+    var validLogin = sec["Login"];
+    var validPassword = sec["Password"];
+
+    if (string.IsNullOrEmpty(req.Login) || string.IsNullOrEmpty(req.Password) ||
+        req.Login != validLogin || req.Password != validPassword)
+    {
+        return Results.Unauthorized();
+    }
+
+    var token = Guid.NewGuid().ToString("N");
+    authSessions[token] = DateTime.UtcNow.AddHours(24);
+    context.Response.Cookies.Append("beacon_session", token, new CookieOptions
+    {
+        HttpOnly = true,
+        SameSite = SameSiteMode.Lax,
+        MaxAge = TimeSpan.FromHours(24),
+        Path = "/"
+    });
+    return Results.Ok(new { token });
+})
+.RequireHost("*:80");
+
+app.MapPost("/api/auth/logout", (HttpContext context) =>
+{
+    if (context.Request.Cookies.TryGetValue("beacon_session", out var token))
+    {
+        authSessions.TryRemove(token, out _);
+        context.Response.Cookies.Delete("beacon_session", new CookieOptions { Path = "/" });
+    }
+    return Results.Ok();
+})
+.RequireHost("*:80");
+
+app.MapGet("/api/auth/status", (HttpContext context) =>
+{
+    if (context.Request.Cookies.TryGetValue("beacon_session", out var token) &&
+        authSessions.TryGetValue(token, out var expires) &&
+        expires >= DateTime.UtcNow)
+    {
+        return Results.Ok(new { authenticated = true });
+    }
+    return Results.Unauthorized();
+})
+.RequireHost("*:80");
+
 app.Run();
+
+// --- Record type for login request ---
+public record LoginRequest(string Login, string Password);
