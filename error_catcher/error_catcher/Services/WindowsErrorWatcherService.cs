@@ -38,7 +38,7 @@ public sealed class WindowsErrorWatcherService : BackgroundService
         {
             try
             {
-                var query = "*[System/Level=1 or System/Level=2]";
+                var query = "*[System/Level=1 or System/Level=2 or System/Level=3]";
                 var eventLogQuery = new EventLogQuery(logName, PathType.LogName, query);
                 var watcher = new EventLogWatcher(eventLogQuery);
 
