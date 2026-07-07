@@ -132,6 +132,8 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     function initDashboard() {
+        dashboardContent.classList.remove('hidden');
+        loginOverlay.classList.add('hidden');
         fetchStats();
         fetchEventTypes();
         fetchSources();
@@ -315,18 +317,18 @@ document.addEventListener('DOMContentLoaded', function () {
         if (et === 'security') return 'table-row-security';
         if (et === 'metric') return 'table-row-metric';
         const lv = (log.levelDisplayName || '').toLowerCase();
-        if (lv.includes('error') || lv.includes('critical')) return 'table-row-error';
-        if (lv.includes('warning')) return 'table-row-warning';
+        if (lv.includes('error') || lv.includes('critical') || lv.includes('ошибк') || lv.includes('критическ')) return 'table-row-error';
+        if (lv.includes('warning') || lv.includes('предупрежден')) return 'table-row-warning';
         return 'table-row-info';
     }
 
     function getLevelBadge(level) {
         if (!level) return 'badge-level-default';
         const l = level.toLowerCase();
-        if (l.includes('critical')) return 'badge-level-critical';
-        if (l.includes('error')) return 'badge-level-error';
-        if (l.includes('warning')) return 'badge-level-warning';
-        if (l.includes('information')) return 'badge-level-info';
+        if (l.includes('critical') || l.includes('критическ')) return 'badge-level-critical';
+        if (l.includes('error') || l.includes('ошибк')) return 'badge-level-error';
+        if (l.includes('warning') || l.includes('предупрежден')) return 'badge-level-warning';
+        if (l.includes('information') || l.includes('информац')) return 'badge-level-info';
         return 'badge-level-default';
     }
 
