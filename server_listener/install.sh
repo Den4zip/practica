@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_NAME="BEACON Server"
 SERVICE_NAME="beacon-server"
-INSTALL_DIR="/opt/$SERVICE_NAME"
+INSTALL_DIR="/var/www/$SERVICE_NAME"
 PUBLISH_DIR="/tmp/${SERVICE_NAME}_pub"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR/server_listener"
@@ -111,6 +111,11 @@ header "Установка файлов"
 
 sudo mkdir -p "$INSTALL_DIR"
 sudo cp "$PUBLISH_DIR/server_listener" "$INSTALL_DIR/"
+if [ -d "$PUBLISH_DIR/wwwroot" ]; then
+    sudo cp -r "$PUBLISH_DIR/wwwroot" "$INSTALL_DIR/wwwroot"
+    info "Скопирована папка wwwroot (HTML, JS, CSS)"
+fi
+sudo cp "$PUBLISH_DIR/appsettings.json" "$INSTALL_DIR/appsettings.json.orig" 2>/dev/null || true
 info "Скопирован исполняемый файл: $INSTALL_DIR/server_listener"
 
 # ---- 5. Создание appsettings.json ----
