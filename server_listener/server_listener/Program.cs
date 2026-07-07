@@ -1,13 +1,13 @@
-using MySqlConnector;
-using System.Collections.Concurrent;
-using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.Extensions.Primitives;
+using MySqlConnector;
+using ServerListener.Endpoints;
+using ServerListener.Middleware;
+using ServerListener.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- 1. Конфигурация сервисов ---
+// --- Services ---
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -23,63 +23,26 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
-builder.Services.AddTransient<MySqlConnection>(_ => 
+builder.Services.AddTransient<MySqlConnection>(_ =>
     new MySqlConnection(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddSingleton<AuthService>();
+builder.Services.AddTransient<LogService>();
+builder.Services.AddTransient<IngestService>();
 
 var app = builder.Build();
 
-// --- Auth session store ---
-var authSessions = new ConcurrentDictionary<string, DateTime>();
-
-// --- 2. Настройка конвейера обработки запросов (Middleware) ---
+// --- Middleware pipeline ---
 
 app.UseRateLimiter();
-
-app.Use(async (context, next) =>
-{
-    if (context.Request.Path == "/query" && context.Request.Host.Port == 8080)
-    {
-        if (!context.Request.Headers.TryGetValue("X-Api-Key", out StringValues extractedApiKey))
-        {
-            context.Response.StatusCode = 401;
-            await context.Response.WriteAsync("API Key was not provided.");
-            return;
-        }
-
-        var apiKey = app.Configuration.GetValue<string>("Security:ApiKey");
-        if (apiKey != null && !apiKey.Equals(extractedApiKey))
-        {
-            context.Response.StatusCode = 401;
-            await context.Response.WriteAsync("Unauthorized client.");
-            return;
-        }
-    }
-
-    // Dashboard auth check (порт 80, кроме эндпоинтов аутентификации)
-    if (context.Request.Host.Port != 8080 &&
-        !context.Request.Path.StartsWithSegments("/api/auth"))
-    {
-        if (!context.Request.Cookies.TryGetValue("beacon_session", out var token) ||
-            !authSessions.TryGetValue(token, out var expires) ||
-            expires < DateTime.UtcNow)
-        {
-            if (context.Request.Path.StartsWithSegments("/api/"))
-            {
-                context.Response.StatusCode = 401;
-                return;
-            }
-        }
-    }
-
-    await next(context);
-});
+app.UseMiddleware<ApiKeyMiddleware>();
+app.UseMiddleware<SessionAuthMiddleware>();
 
 app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = ctx =>
     {
-        // Устанавливаем заголовок Content-Type с указанием кодировки UTF-8 для .js файлов
         if (ctx.File.Name.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
         {
             ctx.Context.Response.ContentType = "application/javascript; charset=utf-8";
@@ -87,230 +50,10 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
-// --- 3. Определение эндпоинтов ---
+// --- Endpoints ---
 
-// Эндпоинт для приема SQL-запросов (порт 8080)
-app.MapPost("/query", async (HttpContext context, MySqlConnection dbConnection) => {
-    using var reader = new StreamReader(context.Request.Body, Encoding.UTF8);
-    var sqlQuery = await reader.ReadToEndAsync();
-
-    if (string.IsNullOrWhiteSpace(sqlQuery) || !sqlQuery.Trim().StartsWith("INSERT INTO", StringComparison.OrdinalIgnoreCase))
-    {
-        return Results.BadRequest("Invalid or non-INSERT query provided.");
-    }
-    
-    try
-    {
-        await dbConnection.OpenAsync();
-        var command = new MySqlCommand(sqlQuery, dbConnection);
-        await command.ExecuteNonQueryAsync();
-        return Results.Ok();
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogError(ex, "Error executing insert query.");
-        if (app.Environment.IsDevelopment())
-        {
-            return Results.Problem(ex.ToString());
-        }
-        return Results.Problem("An error occurred while processing your request.");
-    }
-})
-.RequireHost("*:8080")
-.RequireRateLimiting("ingest");
-
-
-// Эндпоинт API для получения логов (порт 80) с расширенной фильтрацией
-app.MapGet("/api/logs", async (MySqlConnection dbConnection, int page = 1, int pageSize = 30, 
-                                 string? eventType = null, string? logName = null, 
-                                 string? machineName = null, string? source = null, 
-                                 string? search = null, string sortOrder = "desc",
-                                 string? level = null) => 
-{
-    var whereClauses = new List<string>();
-    var parameters = new Dictionary<string, object>();
-
-    if (!string.IsNullOrEmpty(eventType))
-    {
-        whereClauses.Add("EventType = @EventType");
-        parameters["@EventType"] = eventType;
-    }
-    if (!string.IsNullOrEmpty(logName))
-    {
-        whereClauses.Add("LogName = @LogName");
-        parameters["@LogName"] = logName;
-    }
-    if (!string.IsNullOrEmpty(machineName))
-    {
-        whereClauses.Add("MachineName = @MachineName");
-        parameters["@MachineName"] = machineName;
-    }
-    if (!string.IsNullOrEmpty(source))
-    {
-        whereClauses.Add("Source = @Source");
-        parameters["@Source"] = source;
-    }
-    if (!string.IsNullOrEmpty(search))
-    {
-        whereClauses.Add("Message LIKE @Search");
-        parameters["@Search"] = $"%{search}%";
-    }
-    if (!string.IsNullOrEmpty(level))
-    {
-        whereClauses.Add("LevelDisplayName LIKE @Level");
-        parameters["@Level"] = $"%{level}%";
-    }
-    
-    var whereSql = whereClauses.Any() ? "WHERE " + string.Join(" AND ", whereClauses) : "";
-    var orderBySql = $"ORDER BY TimeCreated {(sortOrder.ToLower() == "asc" ? "ASC" : "DESC")}";
-
-    await dbConnection.OpenAsync();
-
-    var countSql = $"SELECT COUNT(*) FROM SystemLogs {whereSql}";
-    var countCommand = new MySqlCommand(countSql, dbConnection);
-    foreach (var p in parameters) countCommand.Parameters.AddWithValue(p.Key, p.Value);
-    var totalCount = Convert.ToInt32(await countCommand.ExecuteScalarAsync());
-
-    var selectSql = $"SELECT Id, EventID, MachineName, EventType, Source, LevelDisplayName, LogName, TimeCreated, Message FROM SystemLogs {whereSql} {orderBySql} LIMIT @PageSize OFFSET @Offset";
-    var selectCommand = new MySqlCommand(selectSql, dbConnection);
-    foreach (var p in parameters) selectCommand.Parameters.AddWithValue(p.Key, p.Value);
-    selectCommand.Parameters.AddWithValue("@PageSize", pageSize);
-    selectCommand.Parameters.AddWithValue("@Offset", (page - 1) * pageSize);
-
-    var logs = new List<object>();
-    using (var reader = await selectCommand.ExecuteReaderAsync())
-    {
-        while (await reader.ReadAsync())
-        {
-            logs.Add(new {
-                Id = reader.GetInt32("Id"),
-                MachineName = reader.GetString("MachineName"),
-                EventType = reader.GetString("EventType"),
-                Source = reader.IsDBNull(reader.GetOrdinal("Source")) ? null : reader.GetString("Source"),
-                LevelDisplayName = reader.IsDBNull(reader.GetOrdinal("LevelDisplayName")) ? null : reader.GetString("LevelDisplayName"),
-                LogName = reader.IsDBNull(reader.GetOrdinal("LogName")) ? null : reader.GetString("LogName"),
-                EventID = reader.IsDBNull(reader.GetOrdinal("EventID")) ? (int?)null : reader.GetInt32("EventID"),
-                TimeCreated = reader.GetDateTime("TimeCreated"),
-                Message = reader.GetString("Message")
-            });
-        }
-    }
-    
-    return Results.Ok(new {
-        logs,
-        totalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
-    });
-})
-.RequireHost("*:80");
-
-// Эндпоинт для получения статистики (общее кол-во, ошибки, предупреждения, информация)
-app.MapGet("/api/logs/stats", async (MySqlConnection dbConnection) => {
-    await dbConnection.OpenAsync();
-
-    var totalCmd = new MySqlCommand("SELECT COUNT(*) FROM SystemLogs", dbConnection);
-    var totalCount = Convert.ToInt32(await totalCmd.ExecuteScalarAsync());
-
-    var errorsCmd = new MySqlCommand("SELECT COUNT(*) FROM SystemLogs WHERE LevelDisplayName LIKE '%Error%' OR LevelDisplayName LIKE '%Critical%' OR LevelDisplayName LIKE '%Ошибка%' OR LevelDisplayName LIKE '%Критическ%' OR LevelDisplayName LIKE '%Fatal%'", dbConnection);
-    var errorsCount = Convert.ToInt32(await errorsCmd.ExecuteScalarAsync());
-
-    var warningsCmd = new MySqlCommand("SELECT COUNT(*) FROM SystemLogs WHERE LevelDisplayName LIKE '%Warn%' OR LevelDisplayName LIKE '%Предупреждени%'", dbConnection);
-    var warningsCount = Convert.ToInt32(await warningsCmd.ExecuteScalarAsync());
-
-    var infoCmd = new MySqlCommand("SELECT COUNT(*) FROM SystemLogs WHERE LevelDisplayName LIKE '%Information%' OR LevelDisplayName LIKE '%Info%' OR LevelDisplayName LIKE '%Информац%' OR (LevelDisplayName IS NULL AND EventType NOT IN ('WindowsError','Service'))", dbConnection);
-    var infoCount = Convert.ToInt32(await infoCmd.ExecuteScalarAsync());
-
-    return Results.Ok(new {
-        total = totalCount,
-        errors = errorsCount,
-        warnings = warningsCount,
-        information = infoCount
-    });
-})
-.RequireHost("*:80");
-
-// Эндпоинт для получения уникальных источников логов
-app.MapGet("/api/logs/sources", async (MySqlConnection dbConnection) => {
-    await dbConnection.OpenAsync();
-    var sources = new List<string>();
-    var command = new MySqlCommand("SELECT DISTINCT Source FROM SystemLogs WHERE Source IS NOT NULL ORDER BY Source", dbConnection);
-    using (var reader = await command.ExecuteReaderAsync())
-    {
-        while (await reader.ReadAsync())
-        {
-            sources.Add(reader.GetString("Source"));
-        }
-    }
-    return Results.Ok(sources);
-})
-.RequireHost("*:80");
-
-// Эндпоинт для получения уникальных типов событий
-app.MapGet("/api/logs/eventtypes", async (MySqlConnection dbConnection) => {
-    await dbConnection.OpenAsync();
-    var eventTypes = new List<string>();
-    var command = new MySqlCommand("SELECT DISTINCT EventType FROM SystemLogs ORDER BY EventType", dbConnection);
-    using (var reader = await command.ExecuteReaderAsync())
-    {
-        while (await reader.ReadAsync())
-        {
-            eventTypes.Add(reader.GetString("EventType"));
-        }
-    }
-    return Results.Ok(eventTypes);
-})
-.RequireHost("*:80");
-
-// --- Auth endpoints ---
-
-app.MapPost("/api/auth/login", (LoginRequest req, HttpContext context) =>
-{
-    var sec = app.Configuration.GetSection("Security");
-    var validLogin = sec["Login"];
-    var validPassword = sec["Password"];
-
-    if (string.IsNullOrEmpty(req.Login) || string.IsNullOrEmpty(req.Password) ||
-        req.Login != validLogin || req.Password != validPassword)
-    {
-        return Results.Unauthorized();
-    }
-
-    var token = Guid.NewGuid().ToString("N");
-    authSessions[token] = DateTime.UtcNow.AddHours(24);
-    context.Response.Cookies.Append("beacon_session", token, new CookieOptions
-    {
-        HttpOnly = true,
-        SameSite = SameSiteMode.Lax,
-        MaxAge = TimeSpan.FromHours(24),
-        Path = "/"
-    });
-    return Results.Ok(new { token });
-})
-.RequireHost("*:80");
-
-app.MapPost("/api/auth/logout", (HttpContext context) =>
-{
-    if (context.Request.Cookies.TryGetValue("beacon_session", out var token))
-    {
-        authSessions.TryRemove(token, out _);
-        context.Response.Cookies.Delete("beacon_session", new CookieOptions { Path = "/" });
-    }
-    return Results.Ok();
-})
-.RequireHost("*:80");
-
-app.MapGet("/api/auth/status", (HttpContext context) =>
-{
-    if (context.Request.Cookies.TryGetValue("beacon_session", out var token) &&
-        authSessions.TryGetValue(token, out var expires) &&
-        expires >= DateTime.UtcNow)
-    {
-        return Results.Ok(new { authenticated = true });
-    }
-    return Results.Unauthorized();
-})
-.RequireHost("*:80");
+app.MapIngestEndpoints();
+app.MapLogEndpoints();
+app.MapAuthEndpoints();
 
 app.Run();
-
-// --- Record type for login request ---
-public record LoginRequest(string Login, string Password);
